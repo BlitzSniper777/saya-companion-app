@@ -97,10 +97,6 @@ def _try_refresh(refresh_token: str, portal: str, client_id: str):
     return None
 
 
-def get_nous_token() -> str:
-    global _token_cache
-
-    # Return cached token if still valid (with 60s buffer)
 def _get_nous_token_oauth() -> str:
     """OAuth-based token acquisition (fallback when no API key pool configured)."""
     if _token_cache["token"] and _token_cache["expires_at"] > time.time() + 60:
