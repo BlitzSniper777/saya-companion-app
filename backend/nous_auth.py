@@ -19,6 +19,58 @@ def _parse_expires_at(raw) -> float:
     return float(raw) if raw else 0.0
 
 
+def _persist_refresh_token(token: str):
+    """Save a rotated refresh token back to Railway env vars so it survives restarts."""
+    railway_token = os.environ.get("RAILWAY_API_TOKEN", "")
+    if not railway_token:
+        return
+    project_id = os.environ.get("RAILWAY_PROJECT_ID", "")
+    env_id = os.environ.get("RAILWAY_ENVIRONMENT_ID", "")
+    service_id = os.environ.get("RAILWAY_SERVICE_ID", "")
+    if not all([project_id, env_id, service_id]):
+        return
+    try:
+        httpx.post(
+            "https://backboard.railway.app/graphql/v2",
+            headers={"Authorization": f"Bearer {railway_token}", "Content-Type": "application/json"},
+            json={
+                "query": (
+                    'mutation { variableUpsert(input: { '
+                    f'projectId: "{project_id}", '
+                    f'environmentId: "{env_id}", '
+                    f'serviceId: "{service_id}", '
+                    f'name: "NOUS_REFRESH_TOKEN", '
+                    f'value: "{token}" '
+                    '}) }'
+                )
+            },
+            timeout=10.0,
+        )
+    except Exception:
+        pass
+
+
+def _try_refresh(refresh_token: str, portal: str, client_id: str):
+    """Exchange a refresh token for a new access token. Returns (access_token, new_refresh, ttl) or None."""
+    try:
+        resp = httpx.post(
+            f"{portal}/api/oauth/token",
+            headers={"x-nous-refresh-token": refresh_token, "Accept": "application/json"},
+            data={"grant_type": "refresh_token", "client_id": client_id},
+            timeout=15.0,
+        )
+        if resp.status_code == 200:
+            payload = resp.json()
+            new_access = payload.get("access_token")
+            if new_access:
+                new_refresh = payload.get("refresh_token", refresh_token)
+                ttl = float(payload.get("expires_in", 900))
+                return new_access, new_refresh, ttl
+    except Exception:
+        pass
+    return None
+
+
 def get_nous_token() -> str:
     global _token_cache
 
@@ -26,35 +78,29 @@ def get_nous_token() -> str:
     if _token_cache["token"] and _token_cache["expires_at"] > time.time() + 60:
         return _token_cache["token"]
 
-    # Production path: refresh token via env vars (no auth.json file needed)
+    portal = os.environ.get("NOUS_PORTAL_URL", "https://portal.nousresearch.com").rstrip("/")
+    client_id = os.environ.get("NOUS_CLIENT_ID", "hermes-cli")
+
+    # 1. Try env var refresh token (Railway persists the latest rotated value)
     nous_refresh = os.environ.get("NOUS_REFRESH_TOKEN", "")
     if nous_refresh:
-        portal = os.environ.get("NOUS_PORTAL_URL", "https://portal.nousresearch.com").rstrip("/")
-        client_id = os.environ.get("NOUS_CLIENT_ID", "hermes-cli")
-        try:
-            resp = httpx.post(
-                f"{portal}/api/oauth/token",
-                headers={"x-nous-refresh-token": nous_refresh, "Accept": "application/json"},
-                data={"grant_type": "refresh_token", "client_id": client_id},
-                timeout=15.0,
-            )
-            if resp.status_code == 200:
-                payload = resp.json()
-                new_access = payload.get("access_token")
-                if new_access:
-                    ttl = float(payload.get("expires_in", 900))
-                    _token_cache["token"] = new_access
-                    _token_cache["expires_at"] = time.time() + ttl
-                    return new_access
-        except Exception:
-            pass
+        result = _try_refresh(nous_refresh, portal, client_id)
+        if result:
+            new_access, new_refresh, ttl = result
+            _token_cache["token"] = new_access
+            _token_cache["expires_at"] = time.time() + ttl
+            # Persist the rotated refresh token back to Railway for future restarts
+            if new_refresh != nous_refresh:
+                _persist_refresh_token(new_refresh)
+            return new_access
 
-    # Fallback: static NOUS_TOKEN (long-lived token set directly)
+    # 2. Static NOUS_TOKEN (long-lived token set directly)
     if settings.NOUS_TOKEN:
         _token_cache["token"] = settings.NOUS_TOKEN
         _token_cache["expires_at"] = time.time() + 86400
         return settings.NOUS_TOKEN
 
+    # 3. File-based auth (local dev only)
     auth_path = Path(settings.NOUS_AUTH_PATH) if settings.NOUS_AUTH_PATH else None
     if not auth_path or not auth_path.exists():
         raise RuntimeError(
@@ -71,7 +117,6 @@ def get_nous_token() -> str:
     access_token = nous.get("access_token", "")
     expires_at = _parse_expires_at(nous.get("expires_at", 0))
 
-    # Use existing access_token if valid
     if access_token and expires_at > time.time() + 60:
         _token_cache["token"] = access_token
         _token_cache["expires_at"] = expires_at
@@ -85,38 +130,23 @@ def get_nous_token() -> str:
         _token_cache["expires_at"] = agent_expires
         return agent_key
 
-    # Refresh using Nous OAuth endpoint
-    # Header: x-nous-refresh-token, Body form: grant_type + client_id
+    # Refresh using file-based refresh token
     refresh_token = nous.get("refresh_token", "")
     if refresh_token:
-        portal = nous.get("portal_base_url", "https://portal.nousresearch.com").rstrip("/")
-        client_id = nous.get("client_id", "hermes-cli")
-        try:
-            resp = httpx.post(
-                f"{portal}/api/oauth/token",
-                headers={"x-nous-refresh-token": refresh_token, "Accept": "application/json"},
-                data={"grant_type": "refresh_token", "client_id": client_id},
-                timeout=15.0,
-            )
-            if resp.status_code == 200:
-                payload = resp.json()
-                new_access = payload.get("access_token")
-                if new_access:
-                    new_refresh = payload.get("refresh_token", refresh_token)
-                    ttl = float(payload.get("expires_in", 900))
-                    now = time.time()
-                    nous["access_token"] = new_access
-                    nous["refresh_token"] = new_refresh
-                    nous["expires_at"] = time.strftime(
-                        "%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(now + ttl)
-                    )
-                    with open(auth_path, "w") as f:
-                        json.dump(auth_data, f, indent=2)
-                    _token_cache["token"] = new_access
-                    _token_cache["expires_at"] = now + ttl
-                    return new_access
-        except Exception:
-            pass
+        file_portal = nous.get("portal_base_url", portal).rstrip("/")
+        file_client_id = nous.get("client_id", client_id)
+        result = _try_refresh(refresh_token, file_portal, file_client_id)
+        if result:
+            new_access, new_refresh, ttl = result
+            now = time.time()
+            nous["access_token"] = new_access
+            nous["refresh_token"] = new_refresh
+            nous["expires_at"] = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(now + ttl))
+            with open(auth_path, "w") as f:
+                json.dump(auth_data, f, indent=2)
+            _token_cache["token"] = new_access
+            _token_cache["expires_at"] = now + ttl
+            return new_access
 
     # Last resort: return expired token with 5-min grace
     if access_token:
