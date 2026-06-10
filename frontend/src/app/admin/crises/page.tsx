@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Shield, AlertTriangle, CheckCircle, XCircle, Eye, MoreHorizontal, Mail, User, Clock, Search, Filter, ChevronLeft, ChevronRight, Flag, MessageSquare, Heart, Brain, Zap, Download, Bell, Shield as ShieldIcon, X, Activity, Users, LineChart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";

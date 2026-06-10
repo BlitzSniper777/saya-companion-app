@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Activity, Users, DollarSign, MessageSquare, TrendingUp, Shield, BarChart2, LineChart, PieChart, Heart, Crown, Flame, ChevronLeft, ChevronRight, Download, Zap, Sparkles as SparklesIcon, Calendar, Clock, Target, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { motion } from "framer-motion";

@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, MessageSquare, Search, Filter, MoreHorizontal, User, Mail, Clock, ChevronLeft, ChevronRight, Eye, Flag, Shield, Download, Zap, Activity, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";

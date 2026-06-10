@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, CreditCard, Crown, Star, TrendingUp, Check, ChevronRight, DollarSign } from "lucide-react";
 import { motion } from "framer-motion";

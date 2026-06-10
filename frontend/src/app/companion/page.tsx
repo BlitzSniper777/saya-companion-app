@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react";
 import { Sparkles, Heart, Brain, TrendingUp, Layers, Loader2, Save, ChevronRight, Crown, Star, Flame, Check, MessageCircle, Gift, Phone, Shield, Settings, User, Bell, Moon, Sun, Palette, Languages, Key, CreditCard, BarChart2, LineChart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";

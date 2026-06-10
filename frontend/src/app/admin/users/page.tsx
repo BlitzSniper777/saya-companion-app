@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Users, Search, Filter, MoreHorizontal, Shield, Mail, CreditCard, Crown, Heart, TrendingUp, Flame, Activity, ChevronLeft, ChevronRight, Check, X, Edit, Trash2, Eye, Bell, Zap, ChevronUp, ChevronDown, XCircle, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
