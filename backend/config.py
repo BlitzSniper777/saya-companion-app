@@ -32,8 +32,8 @@ class Settings:
     STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
     # Admin credentials
-    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "admin@saya.app")
-    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "SayaAdmin2026!")
+    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
 
     # Nous Portal — auth.json path (local dev) or raw token (production)
     NOUS_AUTH_PATH: str = os.getenv("NOUS_AUTH_PATH", "")
