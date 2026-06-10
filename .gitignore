@@ -1,0 +1,49 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+
+# Data / ChromaDB
+data/
+
+# Logs
+*.log
+backend_final.log
+backend_server.log
+backend_server2.log
+frontend.log
+
+# Node
+node_modules/
+.next/
+.vercel/
+
+# Test scripts
+test_pooler*.py
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.bat
+install.bat
+start_backend.bat
+start_frontend.bat
+apply_schema.py
+
+# Sensitive docs
+*.pdf
+INVESTOR_PITCH_DECK.html
+BUSINESS_PLAN.html
+Saya_Investor_Pitch.html
