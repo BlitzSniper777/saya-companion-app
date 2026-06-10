@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopNav } from "@/components/layout/TopNav";
@@ -30,7 +30,6 @@ type ConversationWithPreview = Conversation & { last_message_preview?: string };
 
 export default function ChatPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user, token, isAuthenticated, refreshUser } = useAuth();
   const { toast } = useToast();
 
@@ -51,8 +50,10 @@ export default function ChatPage() {
   const chatContainerRef = useRef<ChatContainerHandle>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Check if should create new conversation
-  const shouldCreateNew = searchParams.get("new") === "true";
+  // Read ?new=true from URL without useSearchParams (avoids Suspense requirement)
+  const shouldCreateNew = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("new") === "true"
+    : false;
 
   // Load conversations on mount
   const loadConversations = useCallback(async () => {
