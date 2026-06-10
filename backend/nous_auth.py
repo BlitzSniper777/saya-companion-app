@@ -1,4 +1,5 @@
 import json
+import os
 import time
 import httpx
 from pathlib import Path
@@ -25,16 +26,39 @@ def get_nous_token() -> str:
     if _token_cache["token"] and _token_cache["expires_at"] > time.time() + 60:
         return _token_cache["token"]
 
-    # Production: NOUS_TOKEN env var set directly (no auth.json needed)
+    # Production path: refresh token via env vars (no auth.json file needed)
+    nous_refresh = os.environ.get("NOUS_REFRESH_TOKEN", "")
+    if nous_refresh:
+        portal = os.environ.get("NOUS_PORTAL_URL", "https://portal.nousresearch.com").rstrip("/")
+        client_id = os.environ.get("NOUS_CLIENT_ID", "hermes-cli")
+        try:
+            resp = httpx.post(
+                f"{portal}/api/oauth/token",
+                headers={"x-nous-refresh-token": nous_refresh, "Accept": "application/json"},
+                data={"grant_type": "refresh_token", "client_id": client_id},
+                timeout=15.0,
+            )
+            if resp.status_code == 200:
+                payload = resp.json()
+                new_access = payload.get("access_token")
+                if new_access:
+                    ttl = float(payload.get("expires_in", 900))
+                    _token_cache["token"] = new_access
+                    _token_cache["expires_at"] = time.time() + ttl
+                    return new_access
+        except Exception:
+            pass
+
+    # Fallback: static NOUS_TOKEN (long-lived token set directly)
     if settings.NOUS_TOKEN:
         _token_cache["token"] = settings.NOUS_TOKEN
-        _token_cache["expires_at"] = time.time() + 86400  # treat as long-lived
+        _token_cache["expires_at"] = time.time() + 86400
         return settings.NOUS_TOKEN
 
     auth_path = Path(settings.NOUS_AUTH_PATH) if settings.NOUS_AUTH_PATH else None
     if not auth_path or not auth_path.exists():
         raise RuntimeError(
-            "Nous auth not configured. Set NOUS_TOKEN or NOUS_AUTH_PATH environment variable."
+            "Nous auth not configured. Set NOUS_REFRESH_TOKEN, NOUS_TOKEN, or NOUS_AUTH_PATH."
         )
 
     with open(auth_path, "r") as f:
