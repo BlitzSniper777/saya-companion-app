@@ -116,6 +116,9 @@ async def handle_chat_stream(
         yield f"data: {json.dumps({'type': 'error', 'error': f'Setup error: {setup_err}'})}\n\n"
         return
 
+    # Ping to force Railway/nginx to flush the response buffer immediately
+    yield ": ping\n\n"
+
     try:
         token = get_nous_token()
         async with httpx.AsyncClient(
