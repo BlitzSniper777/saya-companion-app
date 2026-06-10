@@ -2,10 +2,36 @@ import json
 import os
 import time
 import httpx
+import itertools
+import threading
 from pathlib import Path
 from config import settings
 
 _token_cache = {"token": None, "expires_at": 0}
+
+# Static API key pool — populated from NOUS_API_KEYS env var (comma-separated)
+_api_key_cycle = None
+_api_key_lock = threading.Lock()
+
+
+def _init_key_pool():
+    global _api_key_cycle
+    raw = os.environ.get("NOUS_API_KEYS", "")
+    keys = [k.strip() for k in raw.split(",") if k.strip()]
+    if keys:
+        _api_key_cycle = itertools.cycle(keys)
+
+
+def get_nous_token() -> str:
+    """Return the next API key from the pool, or fall back to OAuth flow."""
+    global _api_key_cycle
+    # Lazy-init the key pool
+    if _api_key_cycle is None:
+        _init_key_pool()
+    if _api_key_cycle is not None:
+        with _api_key_lock:
+            return next(_api_key_cycle)
+    return _get_nous_token_oauth()
 
 
 def _parse_expires_at(raw) -> float:
@@ -75,6 +101,8 @@ def get_nous_token() -> str:
     global _token_cache
 
     # Return cached token if still valid (with 60s buffer)
+def _get_nous_token_oauth() -> str:
+    """OAuth-based token acquisition (fallback when no API key pool configured)."""
     if _token_cache["token"] and _token_cache["expires_at"] > time.time() + 60:
         return _token_cache["token"]
 
