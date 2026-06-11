@@ -1,5 +1,4 @@
 import chromadb
-from chromadb.config import Settings as ChromaSettings
 from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Any, Optional
 import uuid
@@ -14,10 +13,18 @@ _embedder = None
 def get_chroma_client():
     global _client
     if _client is None:
-        _client = chromadb.PersistentClient(
-            path=settings.CHROMA_PATH,
-            settings=ChromaSettings(anonymized_telemetry=False)
-        )
+        try:
+            # chromadb >=1.0: Settings removed, pass config directly
+            _client = chromadb.PersistentClient(
+                path=settings.CHROMA_PATH,
+            )
+        except TypeError:
+            # fallback for older chromadb <1.0 that accepted settings kwarg
+            from chromadb.config import Settings as ChromaSettings  # noqa
+            _client = chromadb.PersistentClient(
+                path=settings.CHROMA_PATH,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
     return _client
 
 
