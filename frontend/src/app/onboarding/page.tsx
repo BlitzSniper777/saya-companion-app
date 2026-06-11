@@ -1,9 +1,12 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function OnboardingPage() {
-  return <OnboardingFlow />;
+  const router = useRouter();
+  useEffect(() => { router.replace("/auth/register"); }, [router]);
+  return null;
 }

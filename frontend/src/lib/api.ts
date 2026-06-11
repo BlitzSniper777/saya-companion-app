@@ -19,7 +19,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 // Auth
-export async function register(data: { email: string; password: string; full_name?: string }): Promise<TokenResponse> {
+export async function register(data: {
+  email: string;
+  password: string;
+  user_name: string;
+  why_came: string;
+  communication_style: string;
+  friendship_values: string;
+  faith_spirituality: string;
+  user_gender: string;
+  companion_gender_preference: string;
+}): Promise<TokenResponse> {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: getAuthHeaders(),
@@ -60,23 +70,6 @@ export async function updateProfile(data: { full_name?: string; language?: strin
   return handleResponse<User>(res);
 }
 
-export async function completeOnboarding(data: {
-  q1_what_brings_you: string;
-  q2_communication_style: string;
-  q3_friendship_values: string;
-  q4_faith_spirituality: string;
-  q5_user_name: string;
-  user_gender?: string;
-  companion_gender_preference?: string;
-  companion_name?: string;
-}): Promise<OnboardingResponse> {
-  const res = await fetch(`${API_URL}/user/onboarding`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(data),
-  });
-  return handleResponse<OnboardingResponse>(res);
-}
 
 export async function switchCompanionMode(mode: "friend" | "romantic" | "adult"): Promise<{ mode: string }> {
   const res = await fetch(`${API_URL}/companion/mode?mode=${mode}`, {
