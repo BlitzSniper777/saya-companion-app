@@ -24,7 +24,14 @@ class SubscriptionStatusEnum(str, Enum):
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
-    full_name: Optional[str] = Field(None, max_length=100)
+    # Onboarding — collected upfront, companion assigned immediately on register
+    user_name: str = Field(..., min_length=1, max_length=100)
+    why_came: str
+    communication_style: str
+    friendship_values: str
+    faith_spirituality: str
+    user_gender: str = "prefer_not_say"
+    companion_gender_preference: str = "no_preference"
 
 
 class LoginRequest(BaseModel):
@@ -65,23 +72,6 @@ class UserProfileUpdate(BaseModel):
     language: Optional[str] = Field(None, max_length=10)
     timezone: Optional[str] = Field(None, max_length=50)
 
-
-class OnboardingRequest(BaseModel):
-    q1_what_brings_you: str
-    q2_communication_style: str
-    q3_friendship_values: str
-    q4_faith_spirituality: str
-    q5_user_name: str
-    user_gender: str = "prefer_not_say"              # male / female / nonbinary / prefer_not_say
-    companion_gender_preference: str = "no_preference"  # female / male / no_preference
-    companion_name: Optional[str] = None             # ignored — kept for backward compat
-
-
-class OnboardingResponse(BaseModel):
-    success: bool
-    message: str
-    user: UserResponse
-    companion: "CompanionResponse"
 
 
 # Companion models

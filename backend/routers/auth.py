@@ -11,6 +11,7 @@ from auth import create_access_token, get_password_hash, verify_password, decode
 from models import (
     RegisterRequest, LoginRequest, TokenResponse, UserResponse, RefreshRequest
 )
+from companions_catalog import assign_companion
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer(auto_error=False)
@@ -47,40 +48,54 @@ async def register(request: RegisterRequest, supabase: Client = Depends(get_supa
     if existing.data:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Create user
+    # Match companion from onboarding answers collected upfront
+    answers = {
+        "q1_what_brings_you":     request.why_came,
+        "q2_communication_style": request.communication_style,
+        "q3_friendship_values":   request.friendship_values,
+        "q4_faith_spirituality":  request.faith_spirituality,
+    }
+    matched = assign_companion(answers, request.companion_gender_preference)
+
+    # Create user — onboarding done immediately, no placeholder needed
     password_hash = get_password_hash(request.password)
+    user_preferences = {
+        "user_name":                   request.user_name,
+        "why_came":                    request.why_came,
+        "communication_style":         request.communication_style,
+        "friendship_values":           request.friendship_values,
+        "faith_spirituality":          request.faith_spirituality,
+        "user_gender":                 request.user_gender,
+        "companion_gender_preference": request.companion_gender_preference,
+        "companion_name":              matched["name"],
+    }
     user_data = {
         "email": request.email,
         "password_hash": password_hash,
-        "full_name": request.full_name,
-        "user_preferences": {},
-        "onboarding_completed": False,
+        "full_name": request.user_name,
+        "user_preferences": user_preferences,
+        "onboarding_completed": True,
     }
     result = supabase.table("users").insert(user_data).execute()
     user = result.data[0]
-    
-    # Create companion record
-    import random
-    female_names = ["Saya", "Luna", "Nova", "Iris", "Echo", "Zara", "Aiko", "Mara", "Lyra", "Soleil"]
-    male_names = ["Atlas", "Orion", "Cael", "Ryo", "Zane", "Luca", "Finn", "Milo", "Noel", "Ren"]
-    all_names = female_names + male_names
-    companion_name = random.choice(all_names)
-    
+
+    # Create companion record — real match, no random placeholder
+    calibration = {
+        **answers,
+        "user_name":      request.user_name,
+        "personality_id": matched["id"],
+        "gender":         matched["gender"],
+    }
     companion_data = {
         "user_id": user["id"],
-        "name": companion_name,
-        "personality_calibration": {},
+        "name": matched["name"],
+        "personality_calibration": calibration,
         "mode": "friend",
         "relationship_length_days": 0,
         "language": "en",
     }
     supabase.table("companions").insert(companion_data).execute()
 
-    # Store companion name on user profile so it's always accessible without a join
-    supabase.table("users").update({
-        "user_preferences": {"companion_name": companion_name}
-    }).eq("id", user["id"]).execute()
-    
     # Create subscription record (7-day free trial, no card)
     trial_ends_at = datetime.now(timezone.utc) + timedelta(days=7)
     sub_data = {
@@ -92,13 +107,13 @@ async def register(request: RegisterRequest, supabase: Client = Depends(get_supa
         "current_period_end": trial_ends_at.isoformat(),
     }
     supabase.table("subscriptions").insert(sub_data).execute()
-    
+
     # Log consent
     supabase.table("consent_logs").insert({
         "user_id": user["id"],
         "consent_type": "terms_of_service",
         "consent_given": True,
-        "details": {"version": "2.0", "action": "registration"}
+        "details": {"version": "2.0", "action": "registration", "companion_assigned": matched["id"]}
     }).execute()
     
     # Create access token
