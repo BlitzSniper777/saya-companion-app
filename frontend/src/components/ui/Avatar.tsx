@@ -4,7 +4,7 @@ import { HTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/utils";
 
-const BADGE_LEVELS: Record<number, { icon: string; color: string }> = {
+const BADGE_TIERS: Record<number, { icon: string; color: string }> = {
   10:  { icon: "🔥", color: "from-orange-500 to-red-500" },
   20:  { icon: "✨", color: "from-purple-500 to-pink-500" },
   30:  { icon: "💫", color: "from-pink-500 to-rose-600" },
@@ -17,10 +17,9 @@ const BADGE_LEVELS: Record<number, { icon: string; color: string }> = {
   100: { icon: "💎", color: "from-sky-400 to-blue-300" },
 };
 
-function getActiveBadge(level: number) {
-  const milestones = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10];
-  for (const m of milestones) {
-    if (level >= m) return { milestone: m, ...BADGE_LEVELS[m] };
+function getActiveTier(level: number) {
+  for (const m of [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]) {
+    if (level >= m) return { milestone: m, ...BADGE_TIERS[m] };
   }
   return null;
 }
@@ -35,33 +34,43 @@ interface AvatarProps extends HTMLAttributes<HTMLDivElement> {
 
 export const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
   ({ className, src, alt, name, size = "md", level, ...props }, ref) => {
-    const sizes = {
+    const avatarSizes = {
       sm: "w-8 h-8 text-xs",
       md: "w-10 h-10 text-sm",
       lg: "w-12 h-12 text-base",
       xl: "w-16 h-16 text-lg",
     };
 
-    const badgeSizes = {
-      sm: "min-w-[16px] h-[16px] text-[8px] -bottom-1 -right-1 px-[3px]",
-      md: "min-w-[18px] h-[18px] text-[9px] -bottom-1 -right-1 px-[3px]",
-      lg: "min-w-[20px] h-[20px] text-[10px] -bottom-1 -right-1 px-1",
-      xl: "min-w-[24px] h-[24px] text-xs -bottom-1 -right-1 px-1.5",
+    // Badge: icon sits behind, level number floats centered on top
+    const badgeWrap = {
+      sm: "w-[18px] h-[18px] -bottom-1 -right-1",
+      md: "w-[22px] h-[22px] -bottom-1 -right-1",
+      lg: "w-[26px] h-[26px] -bottom-1.5 -right-1.5",
+      xl: "w-[30px] h-[30px] -bottom-1.5 -right-1.5",
+    };
+    const iconSize = {
+      sm: "text-[9px]",
+      md: "text-[11px]",
+      lg: "text-[13px]",
+      xl: "text-[16px]",
+    };
+    const numSize = {
+      sm: "text-[7px]",
+      md: "text-[8px]",
+      lg: "text-[9px]",
+      xl: "text-[11px]",
     };
 
     const initials = name ? getInitials(name) : "?";
-    const badge = level ? getActiveBadge(level) : null;
+    const tier = level != null ? getActiveTier(level) : null;
 
     const avatarEl = (
       <div
-        ref={ref}
         className={cn(
           "rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0",
           "bg-grad-brand text-white font-bold",
-          sizes[size],
-          !level && className
+          avatarSizes[size],
         )}
-        {...(level ? {} : props)}
       >
         {src ? (
           <img src={src} alt={alt || name || "Avatar"} className="w-full h-full object-cover" />
@@ -71,27 +80,43 @@ export const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
       </div>
     );
 
-    if (!level) return avatarEl;
+    if (level == null) {
+      return (
+        <div ref={ref} className={cn("inline-flex flex-shrink-0", className)} {...props}>
+          {avatarEl}
+        </div>
+      );
+    }
 
     return (
-      <div
-        ref={undefined}
-        className={cn("relative inline-flex flex-shrink-0", className)}
-        {...props}
-      >
+      <div ref={ref} className={cn("relative inline-flex flex-shrink-0", className)} {...props}>
         {avatarEl}
+
+        {/* Badge chip: tier icon behind, level number centered on top */}
         <div
           className={cn(
-            "absolute flex items-center justify-center rounded-full font-bold leading-none",
-            "border border-bg shadow-sm z-10",
-            badgeSizes[size],
-            badge
-              ? `bg-gradient-to-br ${badge.color} text-white`
-              : "bg-gradient-to-br from-purple-500 to-pink-500 text-white"
+            "absolute rounded-full flex items-center justify-center",
+            "border-[1.5px] border-bg shadow-md z-10",
+            badgeWrap[size],
+            tier
+              ? `bg-gradient-to-br ${tier.color}`
+              : "bg-gradient-to-br from-purple-500 to-pink-500"
           )}
-          title={badge ? `Level ${level} — Badge earned!` : `Level ${level}`}
+          title={tier ? `Level ${level} — ${["Ember","Spark","Flame","Heartbound","Soulbound","Devotion","Eternal","Transcendent","Divine","Ascended"][tier.milestone/10-1]} badge` : `Level ${level}`}
         >
-          {badge ? badge.icon : level}
+          {/* Tier icon — faint background layer */}
+          {tier && (
+            <span
+              className={cn("absolute select-none leading-none opacity-40", iconSize[size])}
+              aria-hidden
+            >
+              {tier.icon}
+            </span>
+          )}
+          {/* Level number — foreground, centered, bold */}
+          <span className={cn("relative z-10 font-black leading-none text-white", numSize[size])}>
+            {level}
+          </span>
         </div>
       </div>
     );
