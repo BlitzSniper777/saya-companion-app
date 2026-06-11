@@ -1,11 +1,23 @@
-import chromadb
 try:
-    from chromadb.config import Settings as ChromaSettings
-    _CHROMA_SETTINGS = ChromaSettings(anonymized_telemetry=False)
+    import chromadb as _chromadb
+    try:
+        from chromadb.config import Settings as _ChromaSettings
+        _CHROMA_SETTINGS = _ChromaSettings(anonymized_telemetry=False)
+    except ImportError:
+        _CHROMA_SETTINGS = None
+    _CHROMA_AVAILABLE = True
 except ImportError:
-    # chromadb >= 1.0 removed Settings from chromadb.config
+    _CHROMA_AVAILABLE = False
+    _chromadb = None
     _CHROMA_SETTINGS = None
-from sentence_transformers import SentenceTransformer
+
+try:
+    from sentence_transformers import SentenceTransformer as _SentenceTransformer
+    _ST_AVAILABLE = True
+except ImportError:
+    _ST_AVAILABLE = False
+    _SentenceTransformer = None
+
 from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime, timezone
@@ -17,19 +29,23 @@ _embedder = None
 
 
 def get_chroma_client():
+    if not _CHROMA_AVAILABLE:
+        raise RuntimeError("chromadb not installed")
     global _client
     if _client is None:
         kwargs = {"path": settings.CHROMA_PATH}
         if _CHROMA_SETTINGS is not None:
             kwargs["settings"] = _CHROMA_SETTINGS
-        _client = chromadb.PersistentClient(**kwargs)
+        _client = _chromadb.PersistentClient(**kwargs)
     return _client
 
 
 def get_embedder():
+    if not _ST_AVAILABLE:
+        raise RuntimeError("sentence_transformers not installed")
     global _embedder
     if _embedder is None:
-        _embedder = SentenceTransformer('all-MiniLM-L6-v2')
+        _embedder = _SentenceTransformer('all-MiniLM-L6-v2')
     return _embedder
 
 
