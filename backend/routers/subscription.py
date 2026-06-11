@@ -102,7 +102,7 @@ PLANS = {
 @router.get("", response_model=SubscriptionResponse)
 async def get_subscription(user: UserResponse = Depends(get_current_user)):
     sb = get_supabase()
-    result = sb.table("subscriptions").select("*").eq("user_id", str(user.id)).single().execute()
+    result = sb.table("subscriptions").select("*").eq("user_id", str(user["id"])).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Subscription not found")
     return SubscriptionResponse(**result.data)
@@ -126,8 +126,8 @@ async def upgrade_subscription(data: CheckoutRequest, user: UserResponse = Depen
         raise HTTPException(status_code=400, detail="Cannot upgrade to free plan")
     
     session = await create_checkout_session(
-        user_id=user.id,
-        user_email=user.email,
+        user_id=user["id"],
+        user_email=user["email"],
         plan=data.plan,
         interval=data.interval,
         success_url=data.success_url or f"{settings.FRONTEND_URL}/subscription?success=true",
@@ -143,7 +143,7 @@ async def billing_portal(data: PortalRequest, user: UserResponse = Depends(get_c
     from billing.stripe import create_portal_session
     
     sb = get_supabase()
-    sub = sb.table("subscriptions").select("*").eq("user_id", str(user.id)).single().execute()
+    sub = sb.table("subscriptions").select("*").eq("user_id", str(user["id"])).single().execute()
     
     if not sub.data or not sub.data["stripe_customer_id"]:
         raise HTTPException(status_code=400, detail="No Stripe customer found")

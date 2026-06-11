@@ -51,6 +51,8 @@ def get_layer_name(layer: int) -> str:
 
 async def store_conversation_turn(user_id: str, user_message: str, assistant_response: str):
     """Store a conversation turn in the appropriate memory layers."""
+    if not _CHROMA_AVAILABLE:
+        return
     collection = get_collection(user_id)
 
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -77,6 +79,8 @@ async def store_conversation_turn(user_id: str, user_message: str, assistant_res
 
 async def get_user_memories(user_id: str, query: str, limit: int = 5) -> List[Dict[str, Any]]:
     """Retrieve top relevant memories across all layers for a user."""
+    if not _CHROMA_AVAILABLE:
+        return []
     collection = get_collection(user_id)
 
     try:
@@ -102,6 +106,8 @@ async def get_user_memories(user_id: str, query: str, limit: int = 5) -> List[Di
 
 async def store_core_identity(user_id: str, data: Dict[str, Any]):
     """Store core identity facts (Layer 1)."""
+    if not _CHROMA_AVAILABLE:
+        return
     collection = get_collection(user_id)
     content = f"Core identity: {data}"
     mem_id = f"core_{uuid.uuid4()}"
@@ -120,6 +126,8 @@ async def store_core_identity(user_id: str, data: Dict[str, Any]):
 
 async def store_relationship(user_id: str, person_name: str, details: Dict[str, Any]):
     """Store relationship information (Layer 2)."""
+    if not _CHROMA_AVAILABLE:
+        return
     collection = get_collection(user_id)
     content = f"Relationship with {person_name}: {details}"
     mem_id = f"rel_{uuid.uuid4()}"
@@ -139,6 +147,8 @@ async def store_relationship(user_id: str, person_name: str, details: Dict[str, 
 
 async def store_emotional_pattern(user_id: str, trigger: str, pattern: Dict[str, Any]):
     """Store emotional pattern (Layer 3)."""
+    if not _CHROMA_AVAILABLE:
+        return
     collection = get_collection(user_id)
     content = f"Emotional pattern - Trigger: {trigger}, Pattern: {pattern}"
     mem_id = f"emo_{uuid.uuid4()}"
@@ -158,6 +168,8 @@ async def store_emotional_pattern(user_id: str, trigger: str, pattern: Dict[str,
 
 async def store_companion_calibration(user_id: str, calibration: Dict[str, Any]):
     """Store companion calibration (Layer 4)."""
+    if not _CHROMA_AVAILABLE:
+        return
     collection = get_collection(user_id)
     content = f"Companion calibration: {calibration}"
     mem_id = f"cal_{uuid.uuid4()}"
