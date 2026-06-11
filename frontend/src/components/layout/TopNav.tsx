@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Sparkles, Menu, Bell, Search, User, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Sparkles, Menu, Bell, Search, User, Settings, LogOut, ChevronDown, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
@@ -10,7 +10,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { getInitials } from "@/lib/utils";
 
 export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
-  const { user, logout } = useAuth();
+  const { user, logout, coinBalance } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -52,8 +52,19 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
         </div>
 
-        {/* Right - Notifications & User Menu */}
+        {/* Right - Coins, Notifications & User Menu */}
         <div className="flex items-center gap-2">
+          {/* Coin balance */}
+          {user && (
+            <Link
+              href="/coins"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card2 hover:bg-card border border-border transition-colors"
+            >
+              <span className="text-yellow-400 text-base leading-none">🪙</span>
+              <span className="font-bold text-sm text-text">{coinBalance.toLocaleString()}</span>
+              <Plus className="w-3.5 h-3.5 text-purple ml-0.5" />
+            </Link>
+          )}
           {/* Notifications */}
           <div className="relative">
             <button

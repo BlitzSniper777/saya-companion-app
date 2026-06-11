@@ -13,10 +13,12 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   affectionLevel: number;
+  coinBalance: number;
   login: (token: string, user: User) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
   refreshAffection: () => Promise<void>;
+  refreshCoins: () => Promise<void>;
   setCompanion: (companion: Companion) => void;
   setSubscription: (subscription: Subscription) => void;
 }
@@ -30,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [affectionLevel, setAffectionLevel] = useState(1);
+  const [coinBalance, setCoinBalance] = useState(0);
 
   const isAuthenticated = !!token && !!user;
 
@@ -40,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedCompanion = localStorage.getItem("saya_companion");
     const storedSubscription = localStorage.getItem("saya_subscription");
     const storedLevel = localStorage.getItem("saya_affection_level");
+    const storedCoins = localStorage.getItem("saya_coin_balance");
 
     if (storedToken && storedUser) {
       setToken(storedToken);
@@ -47,13 +51,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (storedCompanion) setCompanion(JSON.parse(storedCompanion));
       if (storedSubscription) setSubscription(JSON.parse(storedSubscription));
       if (storedLevel) setAffectionLevel(parseInt(storedLevel, 10));
+      if (storedCoins) setCoinBalance(parseInt(storedCoins, 10));
     }
     setIsLoading(false);
   }, []);
 
-  // Fetch affection level whenever token is set
+  // Fetch affection + coins whenever token is set
   useEffect(() => {
-    if (token) fetchAffection(token);
+    if (token) {
+      fetchAffection(token);
+      fetchCoins(token);
+    }
   }, [token]);
 
   const fetchAffection = async (t: string) => {
@@ -85,11 +93,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("saya_companion");
     localStorage.removeItem("saya_subscription");
     localStorage.removeItem("saya_affection_level");
+    localStorage.removeItem("saya_coin_balance");
     setToken(null);
     setUser(null);
     setCompanion(null);
     setSubscription(null);
     setAffectionLevel(1);
+    setCoinBalance(0);
   };
 
   const refreshUser = async () => {
@@ -108,8 +118,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const fetchCoins = async (t: string) => {
+    try {
+      const res = await fetch(`${API()}/coins`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const bal = data.balance ?? 0;
+        setCoinBalance(bal);
+        localStorage.setItem("saya_coin_balance", String(bal));
+      }
+    } catch {
+      // silent
+    }
+  };
+
   const refreshAffection = async () => {
     if (token) await fetchAffection(token);
+  };
+
+  const refreshCoins = async () => {
+    if (token) await fetchCoins(token);
   };
 
   return (
@@ -122,10 +152,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated,
         affectionLevel,
+        coinBalance,
         login,
         logout,
         refreshUser,
         refreshAffection,
+        refreshCoins,
         setCompanion,
         setSubscription,
       }}

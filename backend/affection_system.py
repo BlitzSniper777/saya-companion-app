@@ -39,8 +39,9 @@ def level_from_points(total_points: int) -> tuple[int, int, int]:
     return level, remaining, points_to_next_level(level)
 
 
-def points_earned_from_gift(price_cents: int) -> int:
-    return max(1, price_cents // 10)
+def points_earned_from_gift(coin_price: int) -> int:
+    """1 coin spent = 1 affection point."""
+    return max(1, coin_price)
 
 
 # ── per-level features ────────────────────────────────────────────────────────

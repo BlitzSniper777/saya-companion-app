@@ -245,7 +245,7 @@ export async function endVoiceCall(): Promise<any> {
 }
 
 // Gifts
-export async function getGiftCatalog(): Promise<{ gifts: any[] }> {
+export async function getGiftCatalog(): Promise<{ gifts: any[]; plan: string }> {
   const res = await fetch(`${API_URL}/gifts/catalog`, { headers: getAuthHeaders() });
   return handleResponse(res);
 }
@@ -261,6 +261,21 @@ export async function sendGift(giftId: string, conversationId: string): Promise<
 
 export async function getGiftHistory(): Promise<{ gifts: any[] }> {
   const res = await fetch(`${API_URL}/gifts/history`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
+// Coins
+export async function getCoins(): Promise<{ balance: number; total_purchased: number; packs: any[] }> {
+  const res = await fetch(`${API_URL}/coins`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
+export async function topUpCoins(packId: string): Promise<{ success: boolean; balance: number; coins_added: number; pack: any }> {
+  const res = await fetch(`${API_URL}/coins/topup`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ pack_id: packId }),
+  });
   return handleResponse(res);
 }
 
