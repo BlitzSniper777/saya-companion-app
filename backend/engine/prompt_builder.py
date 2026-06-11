@@ -36,9 +36,12 @@ def build_system_prompt(
     plan = (subscription or {}).get("plan", "free")
     # Also honour legacy companion.mode field if subscription not conclusive
     companion_mode = companion.get("mode", "friend")
-    if companion_mode == "romantic" and plan not in ("gfbf", "adult"):
+    if companion_mode == "romantic" and plan not in ("gfbf", "adult", "adult_bundle"):
         plan = "gfbf"
-    elif companion_mode == "adult" and plan != "adult":
+    elif companion_mode == "adult" and plan not in ("adult", "adult_bundle"):
+        plan = "adult"
+    # Normalise adult_bundle to adult for prompt selection
+    if plan == "adult_bundle":
         plan = "adult"
 
     prompt_parts = []

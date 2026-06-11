@@ -10,6 +10,7 @@ class PlanEnum(str, Enum):
     companion = "companion"
     gfbf = "gfbf"
     adult = "adult"
+    adult_bundle = "adult_bundle"
 
 
 class SubscriptionStatusEnum(str, Enum):
