@@ -83,7 +83,13 @@ async def switch_mode(
     """
     plan = _get_plan(supabase, current_user["id"])
 
-    allowed = {"free": ["friend"], "companion": ["friend"], "gfbf": ["friend", "romantic"], "adult": ["friend", "romantic", "adult"]}
+    allowed = {
+        "free":         ["friend"],
+        "companion":    ["friend"],
+        "gfbf":         ["friend", "romantic"],
+        "adult":        ["friend", "romantic", "adult"],
+        "adult_bundle": ["friend", "romantic", "adult"],
+    }
     if mode not in allowed.get(plan, ["friend"]):
         raise HTTPException(status_code=403, detail=f"Mode '{mode}' not available on your {plan} plan")
 
@@ -97,7 +103,7 @@ async def switch_mode(
             "user_id": current_user["id"],
             "consent_type": f"{mode}_mode",
             "consent_given": True,
-            "details": {"version": "2.1", "action": "enabled"},
+            "details": {"version": "2.1", "action": "enabled", "plan": plan},
         }).execute()
 
     comp = _get_companion(supabase, current_user["id"])
