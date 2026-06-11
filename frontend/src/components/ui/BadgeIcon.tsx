@@ -18,7 +18,7 @@ const TIERS: Record<number, {
   symbol: React.ReactNode;
 }> = {
   10: {
-    name: "Ember",
+    name: "Bronze",
     from: "#f97316", to: "#dc2626", glow: "#f97316",
     symbol: (
       // Flame: outer flame + inner core
@@ -35,7 +35,7 @@ const TIERS: Record<number, {
     ),
   },
   20: {
-    name: "Spark",
+    name: "Silver",
     from: "#8b5cf6", to: "#ec4899", glow: "#a855f7",
     symbol: (
       // 4-pointed star / lightning diamond
@@ -49,7 +49,7 @@ const TIERS: Record<number, {
     ),
   },
   30: {
-    name: "Flame",
+    name: "Gold",
     from: "#ec4899", to: "#be123c", glow: "#ec4899",
     symbol: (
       // Triple flame cluster
@@ -65,7 +65,7 @@ const TIERS: Record<number, {
     ),
   },
   40: {
-    name: "Heartbound",
+    name: "Platinum",
     from: "#ef4444", to: "#be123c", glow: "#ef4444",
     symbol: (
       // Heart with a shield outline
@@ -82,7 +82,7 @@ const TIERS: Record<number, {
     ),
   },
   50: {
-    name: "Soulbound",
+    name: "Sapphire",
     from: "#06b6d4", to: "#2563eb", glow: "#06b6d4",
     symbol: (
       // Infinity / wave loop
@@ -97,7 +97,7 @@ const TIERS: Record<number, {
     ),
   },
   60: {
-    name: "Devotion",
+    name: "Emerald",
     from: "#f59e0b", to: "#d97706", glow: "#f59e0b",
     symbol: (
       // 8-pointed compass star
@@ -115,7 +115,7 @@ const TIERS: Record<number, {
     ),
   },
   70: {
-    name: "Eternal",
+    name: "Ruby",
     from: "#7c3aed", to: "#4338ca", glow: "#7c3aed",
     symbol: (
       // Crescent moon with 3 small stars
@@ -131,7 +131,7 @@ const TIERS: Record<number, {
     ),
   },
   80: {
-    name: "Transcendent",
+    name: "Diamond",
     from: "#f59e0b", to: "#b45309", glow: "#fbbf24",
     symbol: (
       // 12-ray sunburst
@@ -156,7 +156,7 @@ const TIERS: Record<number, {
     ),
   },
   90: {
-    name: "Divine",
+    name: "Obsidian",
     from: "#fbbf24", to: "#92400e", glow: "#fde047",
     symbol: (
       // Crown with 3 points and gems

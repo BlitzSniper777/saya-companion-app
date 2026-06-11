@@ -72,7 +72,7 @@ export const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
         <div
           className={cn("absolute z-10 border-[1.5px] border-bg rounded-full shadow-md", chipPos[size])}
           style={{ width: chipPx[size], height: chipPx[size] }}
-          title={`Level ${level}${tierLevel ? ` — ${["Ember","Spark","Flame","Heartbound","Soulbound","Devotion","Eternal","Transcendent","Divine","Ascended"][tierLevel / 10 - 1]} badge` : ""}`}
+          title={`Level ${level}${tierLevel ? ` — ${["Bronze","Silver","Gold","Platinum","Sapphire","Emerald","Ruby","Diamond","Obsidian","Ascended"][tierLevel / 10 - 1]} badge` : ""}`}
         >
           {/* Tier badge icon fills the chip */}
           {tierLevel ? (
