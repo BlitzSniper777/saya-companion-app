@@ -167,6 +167,13 @@ async def change_companion(
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("user_id", user_id).execute()
 
+    # Keep companion name on user profile in sync
+    existing_prefs_result = supabase.table("users").select("user_preferences").eq("id", user_id).single().execute()
+    existing_prefs = existing_prefs_result.data.get("user_preferences") or {} if existing_prefs_result.data else {}
+    supabase.table("users").update({
+        "user_preferences": {**existing_prefs, "companion_name": matched["name"]}
+    }).eq("id", user_id).execute()
+
     supabase.table("consent_logs").insert({
         "user_id": user_id,
         "consent_type": "companion_change",

@@ -75,6 +75,11 @@ async def register(request: RegisterRequest, supabase: Client = Depends(get_supa
         "language": "en",
     }
     supabase.table("companions").insert(companion_data).execute()
+
+    # Store companion name on user profile so it's always accessible without a join
+    supabase.table("users").update({
+        "user_preferences": {"companion_name": companion_name}
+    }).eq("id", user["id"]).execute()
     
     # Create subscription record (7-day free trial, no card)
     trial_ends_at = datetime.now(timezone.utc) + timedelta(days=7)

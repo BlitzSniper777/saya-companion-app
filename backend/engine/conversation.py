@@ -58,11 +58,7 @@ async def handle_chat_stream(
                 except Exception:
                     trial_end = None
             if trial_end and datetime.now(timezone.utc) > trial_end:
-                try:
-                    comp_row = supabase.table("companions").select("name").eq("user_id", user_id).single().execute()
-                    companion_name = comp_row.data["name"] if comp_row.data else "Saya"
-                except Exception:
-                    companion_name = "Saya"
+                companion_name = (current_user.get("user_preferences") or {}).get("companion_name", "Saya")
                 yield f"data: {json.dumps({'type': 'error', 'error': f'Your 7-day free trial has ended. Choose a plan to keep chatting with {companion_name}.'})}\n\n"
                 return
 
