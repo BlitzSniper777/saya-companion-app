@@ -91,12 +91,13 @@ async def handle_chat_stream(
         except Exception:
             memories = []
 
-        # Build system prompt
+        # Build system prompt — pass subscription so tier-specific persona is applied
         system_prompt = build_system_prompt(
             companion=companion,
             user_preferences=user_prefs,
             memories=memories,
-            user_id=user_id
+            user_id=user_id,
+            subscription=subscription,
         )
 
         # Build messages for Nous Portal
