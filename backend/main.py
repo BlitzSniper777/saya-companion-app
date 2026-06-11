@@ -98,7 +98,7 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": "2.0.0"
+        "version": "2.0.3-build"
     }
 
 
