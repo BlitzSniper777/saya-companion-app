@@ -78,24 +78,6 @@ PLANS = {
         modes=["friend", "therapist", "life_coach", "romantic_partner", "custom"],
         voice_calls=True,
     ),
-    PlanEnum.adult: PlanInfo(
-        id="adult",
-        name="Adult Add-on",
-        price_monthly=5.99,
-        price_yearly=53.99,
-        price_lifetime=169.99,
-        features=[
-            "Add-on for GF/BF tier only",
-            "Requires age verification (18+)",
-            "Separate ToS (timestamped)",
-            "Adult chat mode",
-            "Spicy gift store",
-        ],
-        message_limit=-1,
-        memory_days=-1,
-        modes=["friend", "therapist", "life_coach", "romantic_partner", "custom", "adult"],
-        adult_content=True,
-    ),
     PlanEnum.adult_bundle: PlanInfo(
         id="adult_bundle",
         name="Adult Bundle",
@@ -135,14 +117,6 @@ async def billing_checkout(
 
     if request.plan == PlanEnum.free:
         raise HTTPException(status_code=400, detail="Cannot upgrade to free plan")
-
-    # Adult add-on requires existing GF/BF plan; adult_bundle is standalone
-    if request.plan == PlanEnum.adult:
-        from database import get_supabase
-        sb = get_supabase()
-        sub = sb.table("subscriptions").select("plan").eq("user_id", current_user["id"]).single().execute()
-        if not sub.data or sub.data["plan"] not in ("gfbf",):
-            raise HTTPException(status_code=403, detail="Adult add-on requires GF/BF plan")
 
     try:
         session = await create_checkout_session(

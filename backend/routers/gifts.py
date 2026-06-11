@@ -64,10 +64,10 @@ GIFT_CATALOG = [
 ]
 
 PLAN_CATEGORIES = {
-    "free":      [],
-    "companion": ["standard"],
-    "gfbf":      ["standard", "romantic"],
-    "adult":     ["standard", "romantic", "spicy"],
+    "free":         [],
+    "companion":    ["standard"],
+    "gfbf":         ["standard", "romantic"],
+    "adult_bundle": ["standard", "romantic", "spicy"],
 }
 
 SAYA_GIFTS_BACK = [

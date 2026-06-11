@@ -71,7 +71,7 @@ CREATE TABLE messages (
 CREATE TABLE subscriptions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'companion', 'gfbf', 'adult')),
+    plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'companion', 'gfbf', 'adult_bundle')),
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'past_due', 'trialing')),
     stripe_customer_id TEXT,
     stripe_subscription_id TEXT,

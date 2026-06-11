@@ -96,9 +96,9 @@ async def get_admin_stats(
     # MRR from subscriptions
     subs_result = supabase.table("subscriptions").select("plan, status").eq("status", "active").execute()
     plan_prices = {
-        "companion": 8.99,
-        "gfbf": 12.99,
-        "adult": 5.99,
+        "companion":    9.99,
+        "gfbf":         12.99,
+        "adult_bundle": 17.99,
     }
     mrr = sum(plan_prices.get(s["plan"], 0) for s in (subs_result.data or []) if s["status"] == "active")
     

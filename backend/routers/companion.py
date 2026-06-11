@@ -87,7 +87,6 @@ async def switch_mode(
         "free":         ["friend"],
         "companion":    ["friend"],
         "gfbf":         ["friend", "romantic"],
-        "adult":        ["friend", "romantic", "adult"],
         "adult_bundle": ["friend", "romantic", "adult"],
     }
     if mode not in allowed.get(plan, ["friend"]):

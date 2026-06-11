@@ -40,7 +40,7 @@ async def get_voice_credits(
     plan_result = supabase.table("subscriptions").select("plan").eq("user_id", user_id).single().execute()
     plan = plan_result.data["plan"] if plan_result.data else "free"
     
-    if plan not in ("gfbf", "adult"):
+    if plan not in ("gfbf", "adult_bundle"):
         raise HTTPException(status_code=403, detail="Voice credits require GF/BF or Adult plan")
     
     credits = await get_or_create_voice_credits(supabase, user_id)
@@ -48,7 +48,7 @@ async def get_voice_credits(
     return VoiceCreditsResponse(
         balance=credits.get("balance_minutes", 0),
         plan=plan,
-        tier_limits={"gfbf": -1, "adult": -1}  # -1 means unlimited
+        tier_limits={"gfbf": -1, "adult_bundle": -1}  # -1 means unlimited
     )
 
 
@@ -71,7 +71,7 @@ async def purchase_voice_package(
     plan_result = supabase.table("subscriptions").select("plan").eq("user_id", user_id).single().execute()
     plan = plan_result.data["plan"] if plan_result.data else "free"
     
-    if plan not in ("gfbf", "adult"):
+    if plan not in ("gfbf", "adult_bundle"):
         raise HTTPException(status_code=403, detail="Voice purchases require GF/BF or Adult plan")
     
     # Validate package
@@ -125,7 +125,7 @@ async def start_voice_call(
     plan_result = supabase.table("subscriptions").select("plan").eq("user_id", user_id).single().execute()
     plan = plan_result.data["plan"] if plan_result.data else "free"
     
-    if plan not in ("gfbf", "adult"):
+    if plan not in ("gfbf", "adult_bundle"):
         raise HTTPException(status_code=403, detail="Voice calls require GF/BF or Adult plan")
     
     # Check balance

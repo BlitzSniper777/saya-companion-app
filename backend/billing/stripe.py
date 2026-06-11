@@ -50,10 +50,10 @@ async def create_checkout_session(
             "yearly": {"amount": 11999, "currency": "usd", "recurring": {"interval": "year"}},
             "lifetime": {"amount": 44999, "currency": "usd", "recurring": None},
         },
-        "adult": {
-            "monthly": {"amount": 599, "currency": "usd", "recurring": {"interval": "month"}},
-            "yearly": {"amount": 5999, "currency": "usd", "recurring": {"interval": "year"}},
-            "lifetime": {"amount": 16999, "currency": "usd", "recurring": None},
+        "adult_bundle": {
+            "monthly": {"amount": 1799, "currency": "usd", "recurring": {"interval": "month"}},
+            "yearly": {"amount": 15999, "currency": "usd", "recurring": {"interval": "year"}},
+            "lifetime": {"amount": 54999, "currency": "usd", "recurring": None},
         },
     }
 
@@ -162,7 +162,7 @@ async def handle_stripe_webhook(payload: bytes, sig_header: str) -> dict:
             # Set message limits based on plan
             if plan == "free":
                 updates["daily_message_limit"] = 15
-            elif plan in ["companion", "gfbf", "adult"]:
+            elif plan in ["companion", "gfbf", "adult_bundle"]:
                 updates["daily_message_limit"] = -1  # unlimited
 
             sb.table("subscriptions").update(updates).eq("user_id", user_id).execute()

@@ -9,7 +9,6 @@ class PlanEnum(str, Enum):
     free = "free"
     companion = "companion"
     gfbf = "gfbf"
-    adult = "adult"
     adult_bundle = "adult_bundle"
 
 
@@ -219,7 +218,7 @@ class SubscriptionPlansResponse(BaseModel):
 
 # Billing models
 class CheckoutRequest(BaseModel):
-    plan: str = Field(..., pattern="^(companion|gfbf|adult)$")
+    plan: str = Field(..., pattern="^(companion|gfbf|adult_bundle)$")
     billing_cycle: str = Field("monthly", pattern="^(monthly|yearly|lifetime)$")
 
 
