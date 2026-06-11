@@ -10,19 +10,7 @@ import { getAffection, getAffectionLeaderboard } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Heart, Star, Trophy, Zap, Lock, ChevronRight, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const BADGE_COLORS: Record<string, string> = {
-  "Ember": "from-orange-500 to-red-500",
-  "Spark": "from-purple-500 to-pink-500",
-  "Flame": "from-pink-500 to-rose-600",
-  "Heartbound": "from-red-500 to-rose-400",
-  "Soulbound": "from-cyan-500 to-blue-500",
-  "Devotion": "from-yellow-400 to-amber-500",
-  "Eternal": "from-purple-600 to-indigo-600",
-  "Transcendent": "from-amber-400 to-yellow-500",
-  "Divine": "from-yellow-400 to-amber-300",
-  "Ascended": "from-sky-400 to-blue-300",
-};
+import { BadgeIcon } from "@/components/ui/BadgeIcon";
 
 function LevelBadge({ badge, earned }: { badge: any; earned: boolean }) {
   return (
@@ -34,11 +22,14 @@ function LevelBadge({ badge, earned }: { badge: any; earned: boolean }) {
       )}
     >
       {!earned && <Lock className="absolute top-2 right-2 w-3 h-3 text-dim" />}
-      <div className={cn(
-        "w-14 h-14 rounded-2xl flex items-center justify-center text-2xl",
-        earned ? `bg-gradient-to-br ${BADGE_COLORS[badge.name] || "from-purple-500 to-pink-500"}` : "bg-card2"
-      )}>
-        {badge.icon}
+      <div className="relative">
+        {earned ? (
+          <BadgeIcon tier={badge.level} size={56} showGlow={true} />
+        ) : (
+          <div className="w-14 h-14 rounded-2xl bg-card2 flex items-center justify-center">
+            <Lock className="w-6 h-6 text-dim opacity-40" />
+          </div>
+        )}
       </div>
       <div>
         <p className={cn("font-bold text-sm", earned ? "text-text" : "text-dim")}>
@@ -246,10 +237,8 @@ export default function AffectionPage() {
                         {badge ? (
                           <LevelBadge badge={{ ...badge, level: badgeLevel }} earned={!!earned} />
                         ) : (
-                          <div className="glass-card p-4 flex flex-col items-center gap-2 opacity-25">
-                            <div className="w-14 h-14 rounded-2xl bg-card2 flex items-center justify-center text-dim text-lg">
-                              ?
-                            </div>
+                          <div className="glass-card p-4 flex flex-col items-center gap-2 opacity-20">
+                            <BadgeIcon tier={badgeLevel} size={56} />
                             <p className="text-xs text-dim">Level {badgeLevel}</p>
                           </div>
                         )}
