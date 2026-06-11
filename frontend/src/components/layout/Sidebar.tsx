@@ -36,7 +36,7 @@ const navigation = [
 ];
 
 export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; onToggle?: () => void }) {
-  const { user, companion, subscription, logout } = useAuth();
+  const { user, companion, subscription, logout, affectionLevel } = useAuth();
   const pathname = usePathname();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -84,7 +84,7 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
       {!collapsed && (
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <Avatar name={user.full_name || user.email} size="lg" />
+            <Avatar name={user.full_name || user.email} size="lg" level={affectionLevel} />
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-text truncate">{user.full_name || "Friend"}</p>
               <p className="text-xs text-dim truncate">{user.email}</p>
@@ -153,7 +153,7 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-dim hover:text-text hover:bg-card2 transition-colors"
               >
-                <Avatar name={user.full_name || user.email} size="sm" />
+                <Avatar name={user.full_name || user.email} size="sm" level={affectionLevel} />
                 <span className="font-medium flex-1 text-left truncate">{user.full_name || "Account"}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>

@@ -37,7 +37,7 @@ function formatPrice(cents: number) {
 }
 
 export default function GiftsPage() {
-  const { subscription } = useAuth();
+  const { subscription, refreshAffection } = useAuth();
   const { toast } = useToast();
   const [catalog, setCatalog] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -74,6 +74,7 @@ export default function GiftsPage() {
       await sendGift(giftId, selectedConv);
       const updated = await getGiftHistory();
       setHistory(updated.gifts || []);
+      await refreshAffection();
       toast({ title: "Gift sent!", description: "Saya will love it." });
     } catch (err: any) {
       toast({ title: "Error", description: err?.message || "Failed to send gift", variant: "destructive" });

@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Companion, Subscription } from "@/types";
 
+const API = () => process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8007";
+
 interface AuthContextType {
   user: User | null;
   companion: Companion | null;
@@ -10,9 +12,11 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  affectionLevel: number;
   login: (token: string, user: User) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  refreshAffection: () => Promise<void>;
   setCompanion: (companion: Companion) => void;
   setSubscription: (subscription: Subscription) => void;
 }
@@ -25,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [affectionLevel, setAffectionLevel] = useState(1);
 
   const isAuthenticated = !!token && !!user;
 
@@ -34,15 +39,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem("saya_user");
     const storedCompanion = localStorage.getItem("saya_companion");
     const storedSubscription = localStorage.getItem("saya_subscription");
+    const storedLevel = localStorage.getItem("saya_affection_level");
 
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
       if (storedCompanion) setCompanion(JSON.parse(storedCompanion));
       if (storedSubscription) setSubscription(JSON.parse(storedSubscription));
+      if (storedLevel) setAffectionLevel(parseInt(storedLevel, 10));
     }
     setIsLoading(false);
   }, []);
+
+  // Fetch affection level whenever token is set
+  useEffect(() => {
+    if (token) fetchAffection(token);
+  }, [token]);
+
+  const fetchAffection = async (t: string) => {
+    try {
+      const res = await fetch(`${API()}/affection`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const lvl = data.level ?? 1;
+        setAffectionLevel(lvl);
+        localStorage.setItem("saya_affection_level", String(lvl));
+      }
+    } catch {
+      // silent — affection is non-critical
+    }
+  };
 
   const login = (newToken: string, newUser: User) => {
     localStorage.setItem("saya_token", newToken);
@@ -56,16 +84,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("saya_user");
     localStorage.removeItem("saya_companion");
     localStorage.removeItem("saya_subscription");
+    localStorage.removeItem("saya_affection_level");
     setToken(null);
     setUser(null);
     setCompanion(null);
     setSubscription(null);
+    setAffectionLevel(1);
   };
 
   const refreshUser = async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8007"}/user/profile`, {
+      const res = await fetch(`${API()}/user/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -78,6 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshAffection = async () => {
+    if (token) await fetchAffection(token);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -87,9 +121,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isLoading,
         isAuthenticated,
+        affectionLevel,
         login,
         logout,
         refreshUser,
+        refreshAffection,
         setCompanion,
         setSubscription,
       }}
