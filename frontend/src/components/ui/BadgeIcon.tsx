@@ -194,14 +194,33 @@ const TIERS: Record<number, {
   },
 };
 
+// Badge background shapes — progressively more ornate as tier increases
+const BADGE_SHAPES: Record<number, string | null> = {
+  10:  null,  // circle
+  20:  null,  // circle
+  // pentagon / shield
+  30:  "M12,1.5 L21.9,8.8 L18.2,20.5 L5.8,20.5 L2.1,8.8 Z",
+  40:  "M12,1.5 L21.9,8.8 L18.2,20.5 L5.8,20.5 L2.1,8.8 Z",
+  // hexagon
+  50:  "M12,1.5 L21.1,6.75 L21.1,17.25 L12,22.5 L2.9,17.25 L2.9,6.75 Z",
+  60:  "M12,1.5 L21.1,6.75 L21.1,17.25 L12,22.5 L2.9,17.25 L2.9,6.75 Z",
+  // 8-pointed star
+  70:  "M12,1.5 L13.9,7.4 L19.4,4.6 L16.6,10.1 L22.5,12 L16.6,13.9 L19.4,19.4 L13.9,16.6 L12,22.5 L10.1,16.6 L4.6,19.4 L7.4,13.9 L1.5,12 L7.4,10.1 L4.6,4.6 L10.1,7.4 Z",
+  80:  "M12,1.5 L13.9,7.4 L19.4,4.6 L16.6,10.1 L22.5,12 L16.6,13.9 L19.4,19.4 L13.9,16.6 L12,22.5 L10.1,16.6 L4.6,19.4 L7.4,13.9 L1.5,12 L7.4,10.1 L4.6,4.6 L10.1,7.4 Z",
+  // 5-pointed crown star
+  90:  "M12,1.5 L14.65,8.36 L21.98,8.75 L16.28,13.39 L18.17,20.49 L12,16.5 L5.83,20.49 L7.72,13.39 L2.02,8.75 L9.35,8.36 Z",
+  // 12-pointed radiant burst
+  100: "M12,1.5 L13.94,4.76 L17.25,2.91 L17.3,6.7 L21.09,6.75 L19.24,10.06 L22.5,12 L19.24,13.94 L21.09,17.25 L17.3,17.3 L17.25,21.09 L13.94,19.24 L12,22.5 L10.06,19.24 L6.75,21.09 L6.7,17.3 L2.91,17.25 L4.76,13.94 L1.5,12 L4.76,10.06 L2.91,6.75 L6.7,6.7 L6.75,2.91 L10.06,4.76 Z",
+};
+
 export function BadgeIcon({ tier, size = 40, className, showGlow = false }: BadgeIconProps) {
   const def = TIERS[tier];
   if (!def) return null;
 
   const gradId = `badge-grad-${tier}`;
   const glowId = `badge-glow-${tier}`;
-  const padding = size * 0.08;
-  const inner = size - padding * 2;
+  const shapePath = BADGE_SHAPES[tier] ?? null;
+  const isCircle = shapePath === null;
 
   return (
     <div
@@ -211,7 +230,7 @@ export function BadgeIcon({ tier, size = 40, className, showGlow = false }: Badg
     >
       {showGlow && (
         <div
-          className="absolute inset-0 rounded-full blur-md opacity-50"
+          className="absolute inset-0 blur-md opacity-50"
           style={{ background: def.glow }}
         />
       )}
@@ -233,10 +252,21 @@ export function BadgeIcon({ tier, size = 40, className, showGlow = false }: Badg
             </filter>
           )}
         </defs>
-        {/* Badge background circle */}
-        <circle cx="12" cy="12" r="11" fill={`url(#${gradId})`} />
-        {/* Subtle inner ring */}
-        <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8" />
+        {/* Badge background — shape varies by tier */}
+        {isCircle ? (
+          <>
+            <circle cx="12" cy="12" r="11" fill={`url(#${gradId})`} />
+            <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8" />
+          </>
+        ) : (
+          <path
+            d={shapePath!}
+            fill={`url(#${gradId})`}
+            stroke="rgba(255,255,255,0.25)"
+            strokeWidth="0.7"
+            strokeLinejoin="round"
+          />
+        )}
         {/* Tier symbol */}
         {def.symbol}
       </svg>
