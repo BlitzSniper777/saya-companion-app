@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
-import { updateProfile, deleteAccount, completeOnboarding, getCompanion, updateCompanion, getSubscription, getPlans } from "@/lib/api";
+import { updateProfile, deleteAccount, getCompanion, updateCompanion, getSubscription, getPlans } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { Avatar } from "@/components/ui/Avatar";

@@ -7,7 +7,7 @@ import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { QuestionCard } from "./QuestionCard";
 import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
-import { completeOnboarding } from "@/lib/api";
+import { register } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const questions = [
@@ -124,26 +124,8 @@ export function OnboardingFlow() {
   const handleBack = () => setCurrentStep((s) => Math.max(0, s - 1));
 
   const handleSubmit = async () => {
-    setLoading(true);
-    try {
-      const res = await completeOnboarding({
-        q1_what_brings_you:         answers.q1_what_brings_you   || "just_curious",
-        q2_communication_style:     answers.q2_communication_style || "depends_mood",
-        q3_friendship_values:       answers.q3_friendship_values  || "understood",
-        q4_faith_spirituality:      answers.q4_faith_spirituality || "rather_not_say",
-        q5_user_name:               answers.q5_user_name          || "Friend",
-        user_gender:                answers.user_gender            || "prefer_not_say",
-        companion_gender_preference: answers.companion_gender_preference || "no_preference",
-      });
-      const companionName = (res as any)?.companion?.name || "your companion";
-      toast.success(`Meet ${companionName}! Ready to chat.`);
-      router.push("/chat");
-      router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to complete onboarding");
-    } finally {
-      setLoading(false);
-    }
+    // This component is no longer used — registration flow handles everything.
+    router.replace("/auth/register");
   };
 
   const progress = ((currentStep + 1) / questions.length) * 100;

@@ -58,6 +58,7 @@ class UserBase(BaseModel):
     timezone: str
     onboarding_completed: bool
     created_at: datetime
+    user_preferences: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
