@@ -8,7 +8,11 @@ from supabase import Client
 from config import settings
 from database import get_supabase
 from models import ChatRequest, ChatChunk
-from memory.chromadb import get_user_memories, store_conversation_turn
+try:
+    from memory.chromadb import get_user_memories, store_conversation_turn
+except Exception:
+    async def get_user_memories(*a, **kw): return []
+    async def store_conversation_turn(*a, **kw): pass
 from engine.prompt_builder import build_system_prompt
 from nous_auth import get_nous_token
 import httpx
