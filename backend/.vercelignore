@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+*.pyo
+.env
+data/
+*.log
+server.log
+server_err.log
+apply_schema*.py
+check_routes.py
+openapi.json
+schema*.sql
