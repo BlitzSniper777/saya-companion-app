@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from database import get_supabase
 from auth import get_current_user
 from models import GiftCatalogItem, GiftCatalogResponse, GiftSendRequest, GiftHistoryItem, GiftHistoryResponse
+from affection_system import points_earned_from_gift, level_from_points, build_affection_response
 
 router = APIRouter(prefix="/gifts", tags=["Gifts"])
 
@@ -166,6 +167,24 @@ async def send_gift(
     except Exception:
         pass  # Best effort
     
+    # Award affection points
+    pts_earned = points_earned_from_gift(gift["price_cents"])
+    affection_data = None
+    try:
+        row = supabase.table("user_affection").select("points").eq("user_id", user_id).execute()
+        if row.data:
+            new_pts = row.data[0]["points"] + pts_earned
+        else:
+            new_pts = pts_earned
+        new_level, _, _ = level_from_points(new_pts)
+        if row.data:
+            supabase.table("user_affection").update({"points": new_pts, "level": new_level}).eq("user_id", user_id).execute()
+        else:
+            supabase.table("user_affection").insert({"user_id": user_id, "points": new_pts, "level": new_level}).execute()
+        affection_data = build_affection_response(new_pts)
+    except Exception:
+        pass
+
     return {
         "success": True,
         "gift_sent": {
@@ -177,7 +196,8 @@ async def send_gift(
         "saya_gift_back": {
             "name": saya_gift["name"],
             "description": saya_gift["description"],
-        }
+        },
+        "affection": affection_data,
     }
 
 

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from config import settings
 from database import get_supabase
-from routers import auth, user, companion, conversations, chat, subscription, billing, admin, webhooks, gifts, voice
+from routers import auth, user, companion, conversations, chat, subscription, billing, admin, webhooks, gifts, voice, affection
 
 
 @asynccontextmanager
@@ -114,6 +114,7 @@ app.include_router(admin.router)
 app.include_router(webhooks.router)
 app.include_router(gifts.router)
 app.include_router(voice.router)
+app.include_router(affection.router)
 
 
 # Global exception handler

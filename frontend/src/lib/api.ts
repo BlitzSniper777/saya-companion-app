@@ -264,6 +264,17 @@ export async function getGiftHistory(): Promise<{ gifts: any[] }> {
   return handleResponse(res);
 }
 
+// Affection
+export async function getAffection(): Promise<any> {
+  const res = await fetch(`${API_URL}/affection`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
+export async function getAffectionLeaderboard(): Promise<{ leaderboard: any[] }> {
+  const res = await fetch(`${API_URL}/affection/leaderboard`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
 // Admin
 export async function adminLogin(email: string, password: string): Promise<{ access_token: string; token_type: string }> {
   const res = await fetch(`${API_URL}/admin/auth/login`, {

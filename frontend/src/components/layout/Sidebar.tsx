@@ -20,6 +20,7 @@ import {
   Bell,
   Moon,
   Sun,
+  Flame,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
@@ -28,6 +29,7 @@ import { useState } from "react";
 const navigation = [
   { id: "chat", label: "Chat", icon: MessageSquare, href: "/chat" },
   { id: "gifts", label: "Gifts", icon: Gift, href: "/gifts" },
+  { id: "affection", label: "Bond", icon: Flame, href: "/affection" },
   { id: "companion", label: "Companion", icon: Heart, href: "/companion" },
   { id: "profile", label: "Profile", icon: User, href: "/profile" },
   { id: "subscription", label: "Subscription", icon: CreditCard, href: "/subscription" },

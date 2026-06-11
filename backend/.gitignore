@@ -8,3 +8,5 @@ venv/
 server.log
 server_err.log
 Claudetmpchrome-debug/
+
+.vercel
