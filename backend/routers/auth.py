@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import EmailStr
 from supabase import Client
+from datetime import datetime, timezone, timedelta
 import uuid
 
 from config import settings
@@ -75,13 +76,15 @@ async def register(request: RegisterRequest, supabase: Client = Depends(get_supa
     }
     supabase.table("companions").insert(companion_data).execute()
     
-    # Create subscription record (free tier)
+    # Create subscription record (7-day free trial, no card)
+    trial_ends_at = datetime.now(timezone.utc) + timedelta(days=7)
     sub_data = {
         "user_id": user["id"],
         "plan": "free",
-        "status": "active",
-        "daily_message_limit": 15,
+        "status": "trialing",
+        "daily_message_limit": -1,
         "daily_message_count": 0,
+        "current_period_end": trial_ends_at.isoformat(),
     }
     supabase.table("subscriptions").insert(sub_data).execute()
     

@@ -48,24 +48,17 @@ async def handle_chat_stream(
             subscription = None
 
         if subscription and subscription["plan"] == "free":
-            # Check if daily reset needed
-            reset_at = subscription.get("daily_message_reset_at")
-            if reset_at:
+            # Trial expiry check
+            trial_end = subscription.get("current_period_end")
+            if trial_end:
                 try:
-                    reset_at = _parse_dt(reset_at)
-                    if reset_at.tzinfo is None:
-                        reset_at = reset_at.replace(tzinfo=timezone.utc)
+                    trial_end = _parse_dt(trial_end)
+                    if trial_end.tzinfo is None:
+                        trial_end = trial_end.replace(tzinfo=timezone.utc)
                 except Exception:
-                    reset_at = None
-            if reset_at and reset_at < datetime.now(timezone.utc):
-                    subscription["daily_message_count"] = 0
-                    supabase.table("subscriptions").update({
-                        "daily_message_count": 0,
-                        "daily_message_reset_at": datetime.now(timezone.utc).isoformat()
-                    }).eq("user_id", user_id).execute()
-
-            if subscription["daily_message_count"] >= subscription["daily_message_limit"]:
-                yield f"data: {json.dumps({'type': 'error', 'error': 'Daily message limit reached. Upgrade for unlimited messages.'})}\n\n"
+                    trial_end = None
+            if trial_end and datetime.now(timezone.utc) > trial_end:
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Your 7-day free trial has ended. Choose a plan to keep chatting with Saya.'})}\n\n"
                 return
 
         # Get conversation history (last 20 messages)
@@ -224,12 +217,6 @@ async def handle_chat_stream(
         "last_message_at": datetime.now(timezone.utc).isoformat(),
         "title": request.message[:50] if not history else None
     }).eq("id", str(conversation_id)).execute()
-    
-    # Update subscription message count
-    if subscription and subscription["plan"] == "free":
-        supabase.table("subscriptions").update({
-            "daily_message_count": subscription["daily_message_count"] + 1
-        }).eq("user_id", user_id).execute()
     
     # Update streak
     await update_streak(user_id, supabase)
