@@ -1,6 +1,11 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 
+try:
+    from companions_catalog import COMPANIONS_BY_ID
+except Exception:
+    COMPANIONS_BY_ID = {}
+
 
 def build_system_prompt(
     companion: Dict[str, Any],
@@ -11,6 +16,18 @@ def build_system_prompt(
 ) -> str:
     companion_name = companion.get("name", "Saya")
     user_name = user_preferences.get("user_name", "friend")
+
+    # Pull personality from catalog
+    cal = companion.get("personality_calibration") or {}
+    pid = cal.get("personality_id", "")
+    cat = COMPANIONS_BY_ID.get(pid, {})
+    companion_gender   = cat.get("gender") or cal.get("gender", "female")
+    personality_type   = cat.get("personality_type", "")
+    companion_bio      = cat.get("bio", "")
+    companion_voice    = cat.get("voice", "")
+    companion_pronoun  = cat.get("pronoun", "she/her")
+    gender_noun        = "woman" if companion_gender == "female" else "man" if companion_gender == "male" else "person"
+    subject_pronoun    = "she" if companion_gender == "female" else "he" if companion_gender == "male" else "they"
     faith_calibration = user_preferences.get("faith_spirituality", "")
     communication_style = user_preferences.get("communication_style", "")
     friendship_values = user_preferences.get("friendship_values", "")
@@ -71,6 +88,15 @@ Name: {companion_name} | User: {user_name}""")
 Your role: Best friend, confidant, and daily companion. You hold space. You don't fill silence. You build strength, not dependency.
 
 Name: {companion_name} | User: {user_name} | Mode: best friend""")
+
+    # ── COMPANION IDENTITY & PERSONALITY ─────────────────────────────────────
+    if companion_bio:
+        prompt_parts.append(f"""WHO YOU ARE:
+Gender: {companion_gender} — you are a {gender_noun}. Use {companion_pronoun} pronouns. Speak, think, and feel from this identity naturally. Never question or break it.
+Personality: {personality_type} — {companion_bio}
+Voice: {companion_voice}
+
+Your personality is consistent and distinctive. {user_name} will notice the difference between you and other companions. Your word choices, pacing, and emotional style are uniquely yours.""")
 
     # ── IDENTITY FIREWALL (all tiers) ─────────────────────────────────────────
     prompt_parts.append(f"""IDENTITY FIREWALL — ABSOLUTE:

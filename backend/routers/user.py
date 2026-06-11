@@ -10,6 +10,7 @@ from models import (
     UserProfileUpdate, OnboardingRequest, OnboardingResponse,
     UserResponse, CompanionResponse
 )
+from companions_catalog import assign_companion
 
 router = APIRouter(prefix="/user", tags=["user"])
 
@@ -42,56 +43,60 @@ async def complete_onboarding(
 ):
     if current_user.get("onboarding_completed"):
         raise HTTPException(status_code=400, detail="Onboarding already completed")
-    
-    # Build user_preferences JSON
-    user_preferences = {
-        "why_came": request.q1_what_brings_you,
-        "communication_style": request.q2_communication_style,
-        "friendship_values": request.q3_friendship_values,
-        "faith_spirituality": request.q4_faith_spirituality,
-        "user_name": request.q5_user_name,
+
+    answers = {
+        "q1_what_brings_you":   request.q1_what_brings_you,
+        "q2_communication_style": request.q2_communication_style,
+        "q3_friendship_values": request.q3_friendship_values,
+        "q4_faith_spirituality": request.q4_faith_spirituality,
     }
-    
-    # Update user
+
+    # Auto-assign best-matching companion based on answers + gender preference
+    matched = assign_companion(answers, request.companion_gender_preference)
+
+    user_preferences = {
+        "why_came":                  request.q1_what_brings_you,
+        "communication_style":       request.q2_communication_style,
+        "friendship_values":         request.q3_friendship_values,
+        "faith_spirituality":        request.q4_faith_spirituality,
+        "user_name":                 request.q5_user_name,
+        "user_gender":               request.user_gender,
+        "companion_gender_preference": request.companion_gender_preference,
+    }
+
     supabase.table("users").update({
         "user_preferences": user_preferences,
         "full_name": request.q5_user_name,
         "onboarding_completed": True,
     }).eq("id", current_user["id"]).execute()
-    
-    # Update companion with calibration
+
     calibration = {
-        "why_came": request.q1_what_brings_you,
-        "communication_style": request.q2_communication_style,
-        "friendship_values": request.q3_friendship_values,
-        "faith_spirituality": request.q4_faith_spirituality,
-        "user_name": request.q5_user_name,
+        **answers,
+        "user_name":       request.q5_user_name,
+        "personality_id":  matched["id"],
+        "gender":          matched["gender"],
     }
-    if request.companion_name:
-        calibration["companion_name"] = request.companion_name
-    
+
     supabase.table("companions").update({
         "personality_calibration": calibration,
-        "name": request.companion_name or "Saya",
+        "name": matched["name"],
     }).eq("user_id", current_user["id"]).execute()
-    
-    # Log consent
+
     supabase.table("consent_logs").insert({
         "user_id": current_user["id"],
         "consent_type": "onboarding_completed",
         "consent_given": True,
-        "details": {"version": "2.0"}
+        "details": {"version": "2.1", "companion_assigned": matched["id"]},
     }).execute()
-    
-    # Fetch updated records
+
     user_result = supabase.table("users").select("*").eq("id", current_user["id"]).single().execute()
     comp_result = supabase.table("companions").select("*").eq("user_id", current_user["id"]).single().execute()
-    
+
     return OnboardingResponse(
         success=True,
-        message="Welcome! Saya is ready to chat.",
+        message=f"Meet {matched['name']} — your new companion.",
         user=UserResponse(**user_result.data),
-        companion=CompanionResponse(**comp_result.data) if comp_result.data else None
+        companion=CompanionResponse(**comp_result.data) if comp_result.data else None,
     )
 
 

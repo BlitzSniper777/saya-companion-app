@@ -72,7 +72,9 @@ class OnboardingRequest(BaseModel):
     q3_friendship_values: str
     q4_faith_spirituality: str
     q5_user_name: str
-    companion_name: Optional[str] = None
+    user_gender: str = "prefer_not_say"              # male / female / nonbinary / prefer_not_say
+    companion_gender_preference: str = "no_preference"  # female / male / no_preference
+    companion_name: Optional[str] = None             # ignored — kept for backward compat
 
 
 class OnboardingResponse(BaseModel):

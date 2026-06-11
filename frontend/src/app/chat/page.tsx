@@ -21,6 +21,8 @@ import {
   deleteConversation,
   streamChat,
   getSubscription,
+  getCompanion,
+  switchCompanionMode,
 } from "@/lib/api";
 import type { Conversation, Message, ChatChunk, Subscription } from "@/types";
 import { X, Plus, Trash2, MessageSquare, Search, ChevronDown, MoreVertical } from "lucide-react";
@@ -47,6 +49,9 @@ export default function ChatPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [newChatTitle, setNewChatTitle] = useState("");
+  const [companionMode, setCompanionMode] = useState<"friend" | "romantic" | "adult">("friend");
+  const [companionName, setCompanionName] = useState("Saya");
+  const [plan, setPlan] = useState<string>("free");
   const chatContainerRef = useRef<ChatContainerHandle>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -84,6 +89,26 @@ export default function ChatPage() {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  // Load companion + subscription plan for mode toggle
+  useEffect(() => {
+    if (!token) return;
+    Promise.all([getCompanion(), getSubscription()]).then(([comp, sub]) => {
+      setCompanionMode((comp.mode as any) || "friend");
+      setCompanionName(comp.name || "Saya");
+      setPlan(sub.plan || "free");
+    }).catch(() => {});
+  }, [token]);
+
+  const handleModeToggle = async (mode: "friend" | "romantic" | "adult") => {
+    try {
+      await switchCompanionMode(mode);
+      setCompanionMode(mode);
+      toast({ title: mode === "friend" ? "Switched to Friend mode" : mode === "romantic" ? `${companionName} is now your partner 💕` : `Intimate mode on 🔥` });
+    } catch (err: any) {
+      toast({ title: "Can't switch mode", description: err?.message, variant: "destructive" });
+    }
+  };
 
   // Load messages when conversation changes
   useEffect(() => {
@@ -275,6 +300,32 @@ export default function ChatPage() {
         {/* Top Nav */}
         <TopNav onMenuClick={handleSidebarToggle} />
         
+        {/* Mode Toggle — only for gfbf and adult plans */}
+        {(plan === "gfbf" || plan === "adult") && (
+          <div className="px-4 md:px-6 pt-2 pb-0 flex justify-center">
+            <div className="inline-flex items-center gap-1 glass-card p-1 rounded-2xl">
+              {(["friend", "romantic", ...(plan === "adult" ? ["adult"] : [])] as const).map((m) => {
+                const labels: Record<string, string> = { friend: "Friend", romantic: "Partner", adult: "Intimate" };
+                const emojis: Record<string, string> = { friend: "👋", romantic: "💕", adult: "🔥" };
+                return (
+                  <button
+                    key={m}
+                    onClick={() => handleModeToggle(m)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-xl text-sm font-medium transition-all",
+                      companionMode === m
+                        ? "bg-purple text-white shadow-sm"
+                        : "text-dim hover:text-text hover:bg-card2"
+                    )}
+                  >
+                    <span className="mr-1">{emojis[m]}</span>{labels[m]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Chat Area */}
         <div className="p-4 md:p-6 flex-1">
           {currentConversation ? (

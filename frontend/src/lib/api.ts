@@ -66,6 +66,8 @@ export async function completeOnboarding(data: {
   q3_friendship_values: string;
   q4_faith_spirituality: string;
   q5_user_name: string;
+  user_gender?: string;
+  companion_gender_preference?: string;
   companion_name?: string;
 }): Promise<OnboardingResponse> {
   const res = await fetch(`${API_URL}/user/onboarding`, {
@@ -74,6 +76,22 @@ export async function completeOnboarding(data: {
     body: JSON.stringify(data),
   });
   return handleResponse<OnboardingResponse>(res);
+}
+
+export async function switchCompanionMode(mode: "friend" | "romantic" | "adult"): Promise<{ mode: string }> {
+  const res = await fetch(`${API_URL}/companion/mode?mode=${mode}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function changeCompanion(): Promise<{ success: boolean; new_companion: string; personality: string; coins_spent: number }> {
+  const res = await fetch(`${API_URL}/companion/change`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
 }
 
 export async function deleteAccount(): Promise<{ success: boolean; message: string }> {

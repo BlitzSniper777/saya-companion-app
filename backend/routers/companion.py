@@ -5,107 +5,175 @@ from datetime import datetime, timezone
 from database import get_supabase
 from routers.auth import get_current_user
 from models import CompanionResponse, CompanionUpdate
+from companions_catalog import assign_companion, COMPANIONS_BY_ID
 
 router = APIRouter(prefix="/companion", tags=["companion"])
 
+COMPANION_CHANGE_COST = 300  # coins ($3 at 1c/coin)
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+def _get_companion(supabase: Client, user_id: str) -> dict:
+    result = supabase.table("companions").select("*").eq("user_id", user_id).single().execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Companion not found")
+    return result.data
+
+
+def _get_plan(supabase: Client, user_id: str) -> str:
+    sub = supabase.table("subscriptions").select("plan").eq("user_id", user_id).single().execute()
+    return sub.data["plan"] if sub.data else "free"
+
+
+# ── routes ────────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=CompanionResponse)
 async def get_companion(
     current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase)
+    supabase: Client = Depends(get_supabase),
 ):
-    result = supabase.table("companions").select("*").eq("user_id", current_user["id"]).single().execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Companion not found")
-    return CompanionResponse(**result.data)
+    comp = _get_companion(supabase, current_user["id"])
+    # Enrich with catalog data if personality_id is set
+    cal = comp.get("personality_calibration") or {}
+    pid = cal.get("personality_id")
+    if pid and pid in COMPANIONS_BY_ID:
+        cat = COMPANIONS_BY_ID[pid]
+        comp["personality_type"] = cat["personality_type"]
+        comp["bio"] = cat["bio"]
+        comp["gender"] = cat["gender"]
+    return CompanionResponse(**comp)
 
 
 @router.patch("", response_model=CompanionResponse)
 async def update_companion(
     request: CompanionUpdate,
     current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase)
+    supabase: Client = Depends(get_supabase),
 ):
     update_data = request.model_dump(exclude_unset=True)
+    # Prevent name changes via this endpoint — use /change instead
+    update_data.pop("name", None)
+
     if "personality_calibration" in update_data:
-        # Merge with existing calibration
         existing = supabase.table("companions").select("personality_calibration").eq("user_id", current_user["id"]).single().execute()
         if existing.data:
-            calibration = existing.data.get("personality_calibration", {}) or {}
+            calibration = existing.data.get("personality_calibration") or {}
             calibration.update(update_data.pop("personality_calibration"))
             update_data["personality_calibration"] = calibration
-    
+
     if update_data:
         update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         supabase.table("companions").update(update_data).eq("user_id", current_user["id"]).execute()
-    
-    result = supabase.table("companions").select("*").eq("user_id", current_user["id"]).single().execute()
-    return CompanionResponse(**result.data)
+
+    comp = _get_companion(supabase, current_user["id"])
+    return CompanionResponse(**comp)
 
 
-@router.post("/mode", response_model=CompanionResponse)
+@router.post("/mode")
 async def switch_mode(
-    mode: str,  # "friend" or "romantic"
+    mode: str,
     current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase)
+    supabase: Client = Depends(get_supabase),
 ):
-    if mode not in ["friend", "romantic"]:
-        raise HTTPException(status_code=400, detail="Invalid mode. Must be 'friend' or 'romantic'")
-    
-    # Check subscription for romantic mode
-    if mode == "romantic":
-        sub = supabase.table("subscriptions").select("plan").eq("user_id", current_user["id"]).single().execute()
-        if not sub.data or sub.data["plan"] not in ["gfbf", "adult"]:
-            raise HTTPException(status_code=403, detail="Romantic mode requires GF/BF plan")
-    
+    """
+    Switch companion mode.
+    companion/free → only "friend"
+    gfbf           → "friend" | "romantic"
+    adult          → "friend" | "romantic" | "adult"
+    """
+    plan = _get_plan(supabase, current_user["id"])
+
+    allowed = {"free": ["friend"], "companion": ["friend"], "gfbf": ["friend", "romantic"], "adult": ["friend", "romantic", "adult"]}
+    if mode not in allowed.get(plan, ["friend"]):
+        raise HTTPException(status_code=403, detail=f"Mode '{mode}' not available on your {plan} plan")
+
     supabase.table("companions").update({
         "mode": mode,
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("user_id", current_user["id"]).execute()
-    
-    # Log consent for romantic mode
-    if mode == "romantic":
+
+    if mode in ("romantic", "adult"):
         supabase.table("consent_logs").insert({
             "user_id": current_user["id"],
-            "consent_type": "romantic_mode",
+            "consent_type": f"{mode}_mode",
             "consent_given": True,
-            "details": {"version": "2.0", "action": "enabled"}
+            "details": {"version": "2.1", "action": "enabled"},
         }).execute()
-    
-    result = supabase.table("companions").select("*").eq("user_id", current_user["id"]).single().execute()
-    return CompanionResponse(**result.data)
+
+    comp = _get_companion(supabase, current_user["id"])
+    return {"mode": comp["mode"], "companion": CompanionResponse(**comp)}
 
 
-@router.post("/adult", response_model=CompanionResponse)
-async def toggle_adult_mode(
+@router.post("/change")
+async def change_companion(
     current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase)
+    supabase: Client = Depends(get_supabase),
 ):
-    # Check GF/BF plan
-    sub = supabase.table("subscriptions").select("plan").eq("user_id", current_user["id"]).single().execute()
-    if not sub.data or sub.data["plan"] != "gfbf":
-        raise HTTPException(status_code=403, detail="Adult mode requires GF/BF plan")
-    
-    # Check romantic mode is active
-    comp = supabase.table("companions").select("mode").eq("user_id", current_user["id"]).single().execute()
-    if not comp.data or comp.data["mode"] != "romantic":
-        raise HTTPException(status_code=400, detail="Romantic mode must be active first")
-    
-    # Toggle adult mode
-    new_mode = "adult" if comp.data["mode"] == "romantic" else "romantic"
-    
-    supabase.table("companions").update({
-        "mode": new_mode,
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }).eq("user_id", current_user["id"]).execute()
-    
-    # Log consent
-    supabase.table("consent_logs").insert({
-        "user_id": current_user["id"],
-        "consent_type": "adult_mode",
-        "consent_given": new_mode == "adult",
-        "details": {"version": "2.0", "action": "enabled" if new_mode == "adult" else "disabled"}
+    """
+    Pay 300 coins to get a newly matched companion.
+    Cannot get the same companion twice in a row.
+    """
+    user_id = current_user["id"]
+
+    # Check coin balance
+    coins_row = supabase.table("user_coins").select("balance").eq("user_id", user_id).single().execute()
+    balance = coins_row.data["balance"] if coins_row.data else 0
+    if balance < COMPANION_CHANGE_COST:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Not enough coins. Need {COMPANION_CHANGE_COST}, have {balance}."
+        )
+
+    # Get current companion so we can exclude it
+    comp = _get_companion(supabase, user_id)
+    cal = comp.get("personality_calibration") or {}
+    current_pid = cal.get("personality_id", "")
+
+    # Re-run matching, excluding current companion
+    user_prefs = current_user.get("user_preferences") or {}
+    answers = {
+        "q1_what_brings_you":    cal.get("q1_what_brings_you", user_prefs.get("why_came", "")),
+        "q2_communication_style": cal.get("q2_communication_style", user_prefs.get("communication_style", "")),
+        "q3_friendship_values":   cal.get("q3_friendship_values", user_prefs.get("friendship_values", "")),
+        "q4_faith_spirituality":  cal.get("q4_faith_spirituality", user_prefs.get("faith_spirituality", "")),
+    }
+    gender_pref = user_prefs.get("companion_gender_preference", "no_preference")
+    matched = assign_companion(answers, gender_pref, exclude_ids=[current_pid])
+
+    # Deduct coins
+    supabase.table("user_coins").update({
+        "balance": balance - COMPANION_CHANGE_COST,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("user_id", user_id).execute()
+
+    supabase.table("coin_transactions").insert({
+        "user_id": user_id,
+        "amount": -COMPANION_CHANGE_COST,
+        "type": "companion_change",
+        "note": f"Changed companion to {matched['name']}",
     }).execute()
-    
-    result = supabase.table("companions").select("*").eq("user_id", current_user["id"]).single().execute()
-    return CompanionResponse(**result.data)
+
+    # Update companion record
+    new_cal = {**cal, "personality_id": matched["id"], "gender": matched["gender"]}
+    supabase.table("companions").update({
+        "name": matched["name"],
+        "personality_calibration": new_cal,
+        "mode": "friend",  # reset mode on companion change
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("user_id", user_id).execute()
+
+    supabase.table("consent_logs").insert({
+        "user_id": user_id,
+        "consent_type": "companion_change",
+        "consent_given": True,
+        "details": {"from": current_pid, "to": matched["id"], "cost_coins": COMPANION_CHANGE_COST},
+    }).execute()
+
+    comp = _get_companion(supabase, user_id)
+    return {
+        "success": True,
+        "new_companion": matched["name"],
+        "personality": matched["personality_type"],
+        "coins_spent": COMPANION_CHANGE_COST,
+        "companion": CompanionResponse(**comp),
+    }
