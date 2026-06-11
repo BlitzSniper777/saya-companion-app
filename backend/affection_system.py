@@ -16,10 +16,12 @@ from typing import Optional
 # ── maths ────────────────────────────────────────────────────────────────────
 
 def points_to_next_level(level: int) -> int:
-    """Points needed to advance FROM `level` to `level+1`."""
+    """Points needed to advance FROM `level` to `level+1`.
+    Each level costs 75% more than the previous: base=100, multiplier=1.75^(level-1).
+    """
     if level >= 100:
         return 0
-    return 100 + (level - 1) * 50
+    return max(1, round(100 * (1.20 ** (level - 1))))
 
 
 def level_from_points(total_points: int) -> tuple[int, int, int]:
