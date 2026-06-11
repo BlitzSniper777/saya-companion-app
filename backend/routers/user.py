@@ -55,13 +55,14 @@ async def complete_onboarding(
     matched = assign_companion(answers, request.companion_gender_preference)
 
     user_preferences = {
-        "why_came":                  request.q1_what_brings_you,
-        "communication_style":       request.q2_communication_style,
-        "friendship_values":         request.q3_friendship_values,
-        "faith_spirituality":        request.q4_faith_spirituality,
-        "user_name":                 request.q5_user_name,
-        "user_gender":               request.user_gender,
+        "why_came":                    request.q1_what_brings_you,
+        "communication_style":         request.q2_communication_style,
+        "friendship_values":           request.q3_friendship_values,
+        "faith_spirituality":          request.q4_faith_spirituality,
+        "user_name":                   request.q5_user_name,
+        "user_gender":                 request.user_gender,
         "companion_gender_preference": request.companion_gender_preference,
+        "companion_name":              matched["name"],
     }
 
     supabase.table("users").update({

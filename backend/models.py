@@ -105,7 +105,6 @@ class CompanionResponse(CompanionBase):
 
 
 class CompanionUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=50)
     mode: Optional[str] = Field(None, pattern="^(friend|romantic|adult)$")
     personality_calibration: Optional[Dict[str, Any]] = None
 

@@ -51,8 +51,6 @@ async def update_companion(
     supabase: Client = Depends(get_supabase),
 ):
     update_data = request.model_dump(exclude_unset=True)
-    # Prevent name changes via this endpoint — use /change instead
-    update_data.pop("name", None)
 
     if "personality_calibration" in update_data:
         existing = supabase.table("companions").select("personality_calibration").eq("user_id", current_user["id"]).single().execute()
