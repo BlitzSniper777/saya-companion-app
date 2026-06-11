@@ -9,7 +9,7 @@ import { getInitials, formatDate } from "@/lib/utils";
 import {
   MessageSquare,
   Heart,
-  Star,
+  Gift,
   User,
   CreditCard,
   Settings,
@@ -27,8 +27,9 @@ import { useState } from "react";
 
 const navigation = [
   { id: "chat", label: "Chat", icon: MessageSquare, href: "/chat" },
-  { id: "profile", label: "Profile", icon: User, href: "/profile" },
+  { id: "gifts", label: "Gifts", icon: Gift, href: "/gifts" },
   { id: "companion", label: "Companion", icon: Heart, href: "/companion" },
+  { id: "profile", label: "Profile", icon: User, href: "/profile" },
   { id: "subscription", label: "Subscription", icon: CreditCard, href: "/subscription" },
 ];
 

@@ -67,7 +67,7 @@ export default function ChatPage() {
         const firstConv = data[0];
         setCurrentConversation(firstConv);
         const convData = await getConversation(firstConv.id);
-        setMessages(convData.messages.reverse());
+        setMessages(convData.messages);
         const sub = await getSubscription();
         setDailyMessageCount(sub.daily_message_count);
         setDailyMessageLimit(sub.daily_message_limit);
@@ -91,7 +91,7 @@ export default function ChatPage() {
     setIsLoading(true);
     getConversation(currentConversation.id)
       .then((data) => {
-        setMessages(data.messages.reverse());
+        setMessages(data.messages);
         setIsLoading(false);
       })
       .catch((err) => {
@@ -200,7 +200,7 @@ export default function ChatPage() {
           // Refresh messages to get proper IDs
           if (finalConversationId) {
             const convData = await getConversation(finalConversationId);
-            setMessages(convData.messages.reverse());
+            setMessages(convData.messages);
           }
         } else if (chunk.type === "crisis") {
           setCrisisDetected(true);
