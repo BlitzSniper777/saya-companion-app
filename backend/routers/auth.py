@@ -67,7 +67,7 @@ async def register(request: RegisterRequest, supabase: Client = Depends(get_supa
         "faith_spirituality":          request.faith_spirituality,
         "user_gender":                 request.user_gender,
         "companion_gender_preference": request.companion_gender_preference,
-        "companion_name":              matched["name"],
+        "companion_id":                matched["id"],
     }
     user_data = {
         "email": request.email,

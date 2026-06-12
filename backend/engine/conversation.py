@@ -14,6 +14,7 @@ except Exception:
     async def get_user_memories(*a, **kw): return []
     async def store_conversation_turn(*a, **kw): pass
 from engine.prompt_builder import build_system_prompt
+from companions_catalog import COMPANIONS_BY_ID
 from nous_auth import get_nous_token
 import httpx
 
@@ -58,7 +59,8 @@ async def handle_chat_stream(
                 except Exception:
                     trial_end = None
             if trial_end and datetime.now(timezone.utc) > trial_end:
-                companion_name = (current_user.get("user_preferences") or {}).get("companion_name", "Saya")
+                companion_id = (current_user.get("user_preferences") or {}).get("companion_id", "")
+                companion_name = COMPANIONS_BY_ID.get(companion_id, {}).get("name", "Saya")
                 yield f"data: {json.dumps({'type': 'error', 'error': f'Your 7-day free trial has ended. Choose a plan to keep chatting with {companion_name}.'})}\n\n"
                 return
 
