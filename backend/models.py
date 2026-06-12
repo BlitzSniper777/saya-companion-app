@@ -383,6 +383,5 @@ class GiftHistoryResponse(BaseModel):
 
 # Forward references
 TokenResponse.update_forward_refs()
-OnboardingResponse.update_forward_refs()
 ConversationResponse.update_forward_refs()
 MessageListResponse.update_forward_refs()
