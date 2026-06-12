@@ -1,19 +1,24 @@
 """
-Daily conversation export — training data + legal records.
-Vercel cron calls GET /admin/export at 02:00 UTC.
-Can also be triggered manually with an admin JWT.
+Training data export — all sources feed one master file.
+
+Sources:
+  1. GET  /admin/export      — daily cron, appends real user conversations
+  2. POST /admin/export/ingest — sim runner calls this after each sim run
+  3. POST /admin/export/ingest-file — one-shot upload of an existing JSONL file
 
 Storage layout (both buckets are private):
   saya-training-data/
-    real_conversations.jsonl   — cumulative, user_id hashed, safe for ML
-    state.json                 — tracks last_export_at
+    saya_combined_training.jsonl  — ALL training data (sims + real users)
+    state.json                    — tracks last_export_at for real-user cursor
   saya-legal-records/
-    {user_id}.jsonl            — full message log per user, append-only
+    {user_id}.jsonl               — full message log per user, append-only
 """
 import hashlib
 import json
 from datetime import datetime, timezone
-from fastapi import APIRouter, Request, Depends, HTTPException
+from typing import List, Any
+from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel
 from supabase import Client
 
 from config import settings
@@ -23,7 +28,7 @@ router = APIRouter(prefix="/admin", tags=["export"])
 
 TRAINING_BUCKET = "saya-training-data"
 LEGAL_BUCKET    = "saya-legal-records"
-TRAINING_PATH   = "real_conversations.jsonl"
+TRAINING_PATH   = "saya_combined_training.jsonl"
 STATE_PATH      = "state.json"
 
 
@@ -215,3 +220,80 @@ async def export_conversations(
         "new_messages":   len(messages),
         "up_to":          state["last_export_at"],
     }
+
+
+# ── sim ingest endpoints ──────────────────────────────────────────────────────
+
+class IngestRequest(BaseModel):
+    turns: List[Any]  # list of dicts — sim turn objects
+    source: str = "sim"
+
+
+@router.post("/export/ingest")
+async def ingest_sim_turns(
+    request: Request,
+    body: IngestRequest,
+    supabase: Client = Depends(get_supabase),
+):
+    """
+    Append sim turns to the master training file.
+    Called by the sim runner after each simulation completes.
+    Each item in `turns` is any dict — it gets written as one JSONL line.
+    The `source` field is injected/overwritten so the origin is always tagged.
+    """
+    _verify_cron_or_admin(request)
+
+    if not body.turns:
+        return {"ingested": 0}
+
+    _ensure_buckets(supabase)
+
+    lines = []
+    for turn in body.turns:
+        if isinstance(turn, dict):
+            turn["source"] = body.source
+        lines.append(json.dumps(turn))
+
+    existing = _download(supabase, TRAINING_BUCKET, TRAINING_PATH)
+    appended = existing + ("\n".join(lines) + "\n").encode()
+    _upload(supabase, TRAINING_BUCKET, TRAINING_PATH, appended)
+
+    return {"ingested": len(lines), "source": body.source}
+
+
+@router.post("/export/ingest-file")
+async def ingest_sim_file(
+    request: Request,
+    file: UploadFile = File(...),
+    source: str = "sim",
+    supabase: Client = Depends(get_supabase),
+):
+    """
+    Upload a .jsonl file and append its lines to the master training file.
+    Use this to upload existing sim output files (raw_turns.jsonl, sim3_raw_turns.jsonl, etc.).
+    Call once per file — lines are appended, never duplicated automatically.
+    """
+    _verify_cron_or_admin(request)
+    _ensure_buckets(supabase)
+
+    raw = await file.read()
+    lines_in = [l.strip() for l in raw.decode("utf-8").splitlines() if l.strip()]
+
+    lines_out = []
+    for line in lines_in:
+        try:
+            obj = json.loads(line)
+            if isinstance(obj, dict):
+                obj["source"] = source
+            lines_out.append(json.dumps(obj))
+        except Exception:
+            pass  # skip malformed lines
+
+    if not lines_out:
+        return {"ingested": 0, "message": "No valid JSONL lines found"}
+
+    existing = _download(supabase, TRAINING_BUCKET, TRAINING_PATH)
+    appended = existing + ("\n".join(lines_out) + "\n").encode()
+    _upload(supabase, TRAINING_BUCKET, TRAINING_PATH, appended)
+
+    return {"ingested": len(lines_out), "source": source, "filename": file.filename}
