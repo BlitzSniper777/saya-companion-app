@@ -1,31 +1,18 @@
 """
-Training data export — all sources feed one private bucket.
+Legal records export — per-user chat logs saved to Supabase Storage.
+Vercel cron calls GET /admin/export at 02:00 UTC.
+
+Training data is handled separately by the LOCAL script:
+  D:\Claude\Empire\Saya Companion App\training_data\export_training.py
+  (runs on Windows Task Scheduler, writes saya_combined_training.jsonl)
 
 Storage layout:
-  saya-training-data/
-    real/YYYY-MM-DD.jsonl         — one file per day, real user turns (hashed IDs)
-    sims/sim_YYYYMMDD_HHMMSS.jsonl — one file per sim run (future sims)
-    sims/sim2_*.jsonl              — historical sim2 data (already uploaded)
-    sims/sim3_*.jsonl              — historical sim3 data (already uploaded)
-    state.json                     — tracks last_export_at cursor
-
-  saya-legal-records/
-    {user_id}.jsonl                — full message log per user, append-only
-
-To get the full training set for fine-tuning:
-  GET /admin/export/manifest  — lists all files in the bucket with download URLs
-  Then concatenate all real/* and sims/* files.
-
-Sources:
-  1. GET  /admin/export          — Vercel cron at 02:00 UTC, appends real turns
-  2. POST /admin/export/ingest   — sim runner calls after each run
+  saya-legal-records/   (private bucket)
+    {user_id}.jsonl     — full message log per user, append-only
 """
-import hashlib
 import json
 from datetime import datetime, timezone
-from typing import List, Any
-from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile, File
-from pydantic import BaseModel
+from fastapi import APIRouter, Request, Depends, HTTPException
 from supabase import Client
 
 from config import settings
@@ -33,9 +20,9 @@ from database import get_supabase
 
 router = APIRouter(prefix="/admin", tags=["export"])
 
-TRAINING_BUCKET = "saya-training-data"
-LEGAL_BUCKET    = "saya-legal-records"
-STATE_PATH      = "state.json"
+LEGAL_BUCKET = "saya-legal-records"
+STATE_BUCKET = "saya-legal-records"
+STATE_PATH   = "_state.json"
 
 
 # ── auth ──────────────────────────────────────────────────────────────────────
@@ -58,42 +45,41 @@ def _verify_cron_or_admin(request: Request):
 
 # ── storage helpers ───────────────────────────────────────────────────────────
 
-def _ensure_buckets(supabase: Client):
-    for bucket in (TRAINING_BUCKET, LEGAL_BUCKET):
-        try:
-            supabase.storage.create_bucket(bucket, {"public": False})
-        except Exception:
-            pass
-
-
-def _download(supabase: Client, bucket: str, path: str) -> bytes:
+def _ensure_bucket(supabase: Client):
     try:
-        data = supabase.storage.from_(bucket).download(path)
+        supabase.storage.create_bucket(LEGAL_BUCKET, {"public": False})
+    except Exception:
+        pass
+
+
+def _download(supabase: Client, path: str) -> bytes:
+    try:
+        data = supabase.storage.from_(LEGAL_BUCKET).download(path)
         return data if isinstance(data, bytes) else bytes(data)
     except Exception:
         return b""
 
 
-def _upload(supabase: Client, bucket: str, path: str, data: bytes):
+def _upload(supabase: Client, path: str, data: bytes):
     try:
-        supabase.storage.from_(bucket).upload(path, data, {"upsert": "true"})
+        supabase.storage.from_(LEGAL_BUCKET).upload(path, data, {"upsert": "true"})
         return
     except Exception:
         pass
     try:
-        supabase.storage.from_(bucket).update(path, data)
+        supabase.storage.from_(LEGAL_BUCKET).update(path, data)
         return
     except Exception:
         pass
     try:
-        supabase.storage.from_(bucket).remove([path])
+        supabase.storage.from_(LEGAL_BUCKET).remove([path])
     except Exception:
         pass
-    supabase.storage.from_(bucket).upload(path, data)
+    supabase.storage.from_(LEGAL_BUCKET).upload(path, data)
 
 
 def _load_state(supabase: Client) -> dict:
-    raw = _download(supabase, TRAINING_BUCKET, STATE_PATH)
+    raw = _download(supabase, STATE_PATH)
     if raw:
         try:
             return json.loads(raw)
@@ -103,28 +89,23 @@ def _load_state(supabase: Client) -> dict:
 
 
 def _save_state(supabase: Client, state: dict):
-    _upload(supabase, TRAINING_BUCKET, STATE_PATH, json.dumps(state).encode())
+    _upload(supabase, STATE_PATH, json.dumps(state).encode())
 
 
-def _hash_uid(user_id: str) -> str:
-    return hashlib.sha256(user_id.encode()).hexdigest()[:16]
-
-
-# ── daily real-user export ────────────────────────────────────────────────────
+# ── export endpoint ───────────────────────────────────────────────────────────
 
 @router.get("/export")
-async def export_conversations(
+async def export_legal_records(
     request: Request,
     supabase: Client = Depends(get_supabase),
 ):
     """
-    Export new conversations since last run.
-    Appends to real/YYYY-MM-DD.jsonl in the training bucket.
-    Appends to per-user JSONL files in the legal records bucket.
+    Append new messages to each user's legal record file in Supabase Storage.
     Triggered daily at 02:00 UTC by Vercel cron.
+    Training data is handled by the local export_training.py script, not here.
     """
     _verify_cron_or_admin(request)
-    _ensure_buckets(supabase)
+    _ensure_bucket(supabase)
 
     state = _load_state(supabase)
     last_export = state.get("last_export_at")
@@ -140,8 +121,9 @@ async def export_conversations(
     messages = query.execute().data or []
 
     if not messages:
-        return {"exported_turns": 0, "users_updated": 0, "message": "No new messages"}
+        return {"users_updated": 0, "message": "No new messages"}
 
+    # Fetch companion info
     user_ids = list({m["user_id"] for m in messages})
     comp_rows = (
         supabase.table("companions")
@@ -158,153 +140,34 @@ async def export_conversations(
             "mode": c.get("mode", "friend"),
         }
 
-    convs: dict = {}
+    # Group messages by user
+    by_user: dict[str, list[str]] = {}
     for m in messages:
-        cid = m["conversation_id"]
-        if cid not in convs:
-            convs[cid] = {"user_id": m["user_id"], "msgs": []}
-        convs[cid]["msgs"].append(m)
-
-    training_lines: list[str] = []
-    legal_by_user: dict[str, list[str]] = {}
-
-    for cid, conv in convs.items():
-        uid = conv["user_id"]
+        uid = m["user_id"]
         comp = companion_map.get(uid, {"companion_id": "", "mode": "friend"})
-        msgs = conv["msgs"]
+        if uid not in by_user:
+            by_user[uid] = []
+        by_user[uid].append(json.dumps({
+            "user_id":         uid,
+            "conversation_id": m["conversation_id"],
+            "companion_id":    comp["companion_id"],
+            "mode":            comp["mode"],
+            "role":            m["role"],
+            "content":         m["content"],
+            "timestamp":       m["created_at"],
+        }))
 
-        if uid not in legal_by_user:
-            legal_by_user[uid] = []
-        for m in msgs:
-            legal_by_user[uid].append(json.dumps({
-                "user_id":         uid,
-                "conversation_id": cid,
-                "companion_id":    comp["companion_id"],
-                "mode":            comp["mode"],
-                "role":            m["role"],
-                "content":         m["content"],
-                "timestamp":       m["created_at"],
-            }))
-
-        i = 0
-        while i < len(msgs) - 1:
-            if msgs[i]["role"] == "user" and msgs[i + 1]["role"] == "assistant":
-                training_lines.append(json.dumps({
-                    "source":          "real",
-                    "companion_id":    comp["companion_id"],
-                    "mode":            comp["mode"],
-                    "user_id_hash":    _hash_uid(uid),
-                    "conversation_id": cid,
-                    "user_msg":        msgs[i]["content"],
-                    "saya_msg":        msgs[i + 1]["content"],
-                    "timestamp":       msgs[i]["created_at"],
-                }))
-                i += 2
-            else:
-                i += 1
-
-    # Write to today's dated file (append if it already exists from a manual run)
-    if training_lines:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        day_path = f"real/{today}.jsonl"
-        existing = _download(supabase, TRAINING_BUCKET, day_path)
-        appended = existing + ("\n".join(training_lines) + "\n").encode()
-        _upload(supabase, TRAINING_BUCKET, day_path, appended)
-
-    for uid, lines in legal_by_user.items():
-        existing = _download(supabase, LEGAL_BUCKET, f"{uid}.jsonl")
+    for uid, lines in by_user.items():
+        existing = _download(supabase, f"{uid}.jsonl")
         appended = existing + ("\n".join(lines) + "\n").encode()
-        _upload(supabase, LEGAL_BUCKET, f"{uid}.jsonl", appended)
+        _upload(supabase, f"{uid}.jsonl", appended)
 
     state["last_export_at"] = messages[-1]["created_at"]
     state["last_run"] = datetime.now(timezone.utc).isoformat()
     _save_state(supabase, state)
 
     return {
-        "exported_turns": len(training_lines),
-        "users_updated":  len(legal_by_user),
-        "new_messages":   len(messages),
-        "up_to":          state["last_export_at"],
-    }
-
-
-# ── sim ingest ────────────────────────────────────────────────────────────────
-
-class IngestRequest(BaseModel):
-    turns: List[Any]
-    source: str = "sim"
-
-
-@router.post("/export/ingest")
-async def ingest_sim_turns(
-    request: Request,
-    body: IngestRequest,
-    supabase: Client = Depends(get_supabase),
-):
-    """
-    Ingest sim turns into the training bucket.
-    Each sim run gets its own timestamped file under sims/.
-    Called by the sim runner when a simulation completes.
-    """
-    _verify_cron_or_admin(request)
-
-    if not body.turns:
-        return {"ingested": 0}
-
-    _ensure_buckets(supabase)
-
-    lines = []
-    for turn in body.turns:
-        if isinstance(turn, dict):
-            turn["source"] = body.source
-        lines.append(json.dumps(turn))
-
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    sim_path = f"sims/sim_{ts}.jsonl"
-    _upload(supabase, TRAINING_BUCKET, sim_path, ("\n".join(lines) + "\n").encode())
-
-    return {"ingested": len(lines), "source": body.source, "path": sim_path}
-
-
-# ── manifest (download all for fine-tuning) ───────────────────────────────────
-
-@router.get("/export/manifest")
-async def export_manifest(
-    request: Request,
-    supabase: Client = Depends(get_supabase),
-):
-    """
-    List all training files in the bucket with signed download URLs.
-    Use this before a fine-tune run to get the full dataset.
-    """
-    _verify_cron_or_admin(request)
-
-    files = []
-    for prefix in ("real/", "sims/"):
-        try:
-            items = supabase.storage.from_(TRAINING_BUCKET).list(prefix.rstrip("/"))
-            for item in (items or []):
-                path = f"{prefix}{item['name']}"
-                try:
-                    url = supabase.storage.from_(TRAINING_BUCKET).create_signed_url(path, 3600)
-                    files.append({
-                        "path": path,
-                        "size_bytes": item.get("metadata", {}).get("size", 0),
-                        "updated_at": item.get("updated_at"),
-                        "url": url.get("signedURL") or url.get("signedUrl", ""),
-                    })
-                except Exception:
-                    files.append({"path": path})
-        except Exception:
-            pass
-
-    total_lines_est = sum(
-        f.get("size_bytes", 0) // 200  # rough estimate: ~200 bytes/line
-        for f in files
-    )
-
-    return {
-        "files": files,
-        "total_files": len(files),
-        "estimated_total_turns": total_lines_est,
+        "users_updated": len(by_user),
+        "new_messages":  len(messages),
+        "up_to":         state["last_export_at"],
     }
