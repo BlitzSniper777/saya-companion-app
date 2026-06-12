@@ -225,7 +225,8 @@ async def handle_chat_stream(
     await update_streak(user_id, supabase)
     
     # Store in ChromaDB memory
-    await store_conversation_turn(user_id, request.message, full_response)
+    comp_id = (current_user.get("user_preferences") or {}).get("companion_id", "")
+    await store_conversation_turn(user_id, request.message, full_response, companion_id=comp_id)
     
     # Yield complete
     yield f"data: {json.dumps({'type': 'complete', 'message_id': saved_msg_id, 'conversation_id': str(conversation_id)})}\n\n"

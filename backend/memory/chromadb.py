@@ -49,7 +49,7 @@ def get_layer_name(layer: int) -> str:
     }.get(layer, "unknown")
 
 
-async def store_conversation_turn(user_id: str, user_message: str, assistant_response: str):
+async def store_conversation_turn(user_id: str, user_message: str, assistant_response: str, companion_id: str = ""):
     """Store a conversation turn in the appropriate memory layers."""
     if not _CHROMA_AVAILABLE:
         return
@@ -67,6 +67,7 @@ async def store_conversation_turn(user_id: str, user_message: str, assistant_res
             documents=[combined_content],
             metadatas=[{
                 "user_id": user_id,
+                "companion_id": companion_id,
                 "layer": layer,
                 "layer_name": get_layer_name(layer),
                 "user_message": user_message,
