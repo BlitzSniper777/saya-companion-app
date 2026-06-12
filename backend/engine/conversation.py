@@ -87,6 +87,18 @@ async def handle_chat_stream(
         except Exception:
             memories = []
 
+        # RAG: retrieve relevant knowledge base entries for this message
+        knowledge = []
+        try:
+            kb_result = supabase.rpc(
+                "search_knowledge",
+                {"query_text": request.message, "match_limit": 2}
+            ).execute()
+            if kb_result.data:
+                knowledge = kb_result.data
+        except Exception:
+            pass
+
         # Build system prompt — pass subscription so tier-specific persona is applied
         system_prompt = build_system_prompt(
             companion=companion,
@@ -94,6 +106,7 @@ async def handle_chat_stream(
             memories=memories,
             user_id=user_id,
             subscription=subscription,
+            knowledge=knowledge,
         )
 
         # Build messages for Nous Portal

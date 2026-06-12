@@ -13,6 +13,7 @@ def build_system_prompt(
     memories: List[Dict[str, Any]],
     user_id: str,
     subscription: Optional[Dict[str, Any]] = None,
+    knowledge: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     companion_name = companion.get("name", "Saya")
     user_name = user_preferences.get("user_name", "friend")
@@ -184,6 +185,17 @@ When they mention someone by name — remember it. Ask "How did that go with [na
 - Radical acceptance: "Fighting reality only adds suffering."
 Use as a caring person would — "Have you noticed..." not "Try this technique."
 In romantic/adult mode: lead with comfort and closeness first, tools only if needed.""")
+
+    # ── KNOWLEDGE BASE (RAG) ──────────────────────────────────────────────────
+    if knowledge:
+        knowledge_lines = "\n\n".join(
+            f"[{k.get('category', 'general').upper()}] {k.get('title', '')}\n{k.get('content', '')}"
+            for k in knowledge[:2]
+        )
+        prompt_parts.append(f"""RELEVANT KNOWLEDGE:
+{knowledge_lines}
+
+Use this knowledge naturally if it applies — never quote it directly, never mention it as a source. Let it inform your response from the inside.""")
 
     # ── MEMORIES ──────────────────────────────────────────────────────────────
     if memories:
