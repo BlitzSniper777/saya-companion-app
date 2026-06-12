@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 import random
+import httpx
+import json
 from datetime import datetime, timezone
 
 from database import get_supabase
@@ -8,6 +10,9 @@ from auth import get_current_user
 from models import GiftSendRequest, GiftHistoryResponse, GiftHistoryItem
 from affection_system import level_from_points, build_affection_response
 from routers.coins import get_or_create_coins
+from engine.prompt_builder import build_system_prompt
+from nous_auth import get_nous_token
+from config import settings
 
 router = APIRouter(prefix="/gifts", tags=["Gifts"])
 
@@ -79,6 +84,55 @@ SAYA_GIFTS_BACK = [
 ]
 
 
+async def generate_gift_reaction(
+    gift: dict,
+    user_name: str,
+    companion: dict,
+    user_preferences: dict,
+    subscription: dict,
+) -> str:
+    """Call the LLM to generate a real, in-character gift reaction. Falls back to static list on failure."""
+    system_prompt = build_system_prompt(
+        companion=companion,
+        user_preferences=user_preferences,
+        memories=[],
+        user_id="",
+        subscription=subscription,
+    )
+    trigger = (
+        f"*{user_name} just sent you {gift['emoji']} **{gift['name']}** — \"{gift['description']}\"*\n\n"
+        f"React to this gift in character. Keep it to 2-3 sentences — genuine, warm, specific to this gift."
+    )
+    try:
+        token = get_nous_token()
+        async with httpx.AsyncClient(
+            base_url=settings.NOUS_INFERENCE_URL,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            timeout=30.0,
+        ) as client:
+            resp = await client.post(
+                "/chat/completions",
+                json={
+                    "model": settings.NOUS_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": trigger},
+                    ],
+                    "stream": False,
+                    "temperature": 0.9,
+                    "max_tokens": 150,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data["choices"][0]["message"]["content"].strip()
+                if text:
+                    return text
+    except Exception:
+        pass
+    return random.choice(SAYA_GIFTS_BACK)
+
+
 def get_user_plan(supabase, user_id: str) -> str:
     result = supabase.table("subscriptions").select("plan").eq("user_id", user_id).single().execute()
     return result.data["plan"] if result.data else "free"
@@ -130,8 +184,18 @@ async def send_gift(
         "note": f"Sent gift: {gift['name']}",
     }).execute()
 
-    # Record gift transaction
-    saya_reply = random.choice(SAYA_GIFTS_BACK)
+    # Generate real in-character LLM reaction
+    try:
+        comp_row = supabase.table("companions").select("*").eq("user_id", uid).single().execute()
+        companion = comp_row.data or {}
+        sub_row = supabase.table("subscriptions").select("*").eq("user_id", uid).single().execute()
+        subscription = sub_row.data or {}
+        user_prefs = current_user.get("user_preferences") or {}
+        user_name = user_prefs.get("user_name", "you")
+        saya_reply = await generate_gift_reaction(gift, user_name, companion, user_prefs, subscription)
+    except Exception:
+        saya_reply = random.choice(SAYA_GIFTS_BACK)
+
     conv_id = str(request.conversation_id)
     try:
         supabase.table("gift_transactions").insert({
@@ -139,23 +203,23 @@ async def send_gift(
             "conversation_id": conv_id,
             "gift_id": gift["id"],
             "gift_name": gift["name"],
-            "amount_cents": gift["coin_price"],  # stored as coin_price for reference
-            "saya_gift_back_id": "saya_reply",
+            "amount_cents": gift["coin_price"],
+            "saya_gift_back_id": saya_reply,
         }).execute()
     except Exception:
         pass
 
-    # Saya's reply message in conversation
+    # Store Saya's reaction as a real conversation message
     try:
         supabase.table("messages").insert({
             "conversation_id": conv_id,
             "user_id": uid,
             "role": "assistant",
-            "content": f"✨ {gift['emoji']} You sent me **{gift['name']}**! {gift['description']}... {saya_reply}",
+            "content": saya_reply,
             "emotion_tags": ["joy", "gift"],
             "topic_tags": ["gift"],
-            "token_count": 25,
-            "metadata": {"gift_event": True, "gift_id": gift["id"]},
+            "token_count": len(saya_reply.split()),
+            "metadata": {"gift_event": True, "gift_id": gift["id"], "gift_name": gift["name"], "gift_emoji": gift["emoji"]},
         }).execute()
     except Exception:
         pass
