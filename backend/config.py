@@ -35,6 +35,9 @@ class Settings:
     ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "")
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
 
+    # Vercel cron secret (set in Vercel env vars, auto-sent with cron requests)
+    CRON_SECRET: str = os.getenv("CRON_SECRET", "")
+
     # Nous Portal — auth.json path (local dev) or raw token (production)
     NOUS_AUTH_PATH: str = os.getenv("NOUS_AUTH_PATH", "")
     NOUS_TOKEN: str = os.getenv("NOUS_TOKEN", "")  # production: set this directly
