@@ -58,13 +58,23 @@ async def create_conversation(
     current_user: dict = Depends(get_current_user),
     supabase: Client = Depends(get_supabase)
 ):
+    user_id = current_user["id"]
     conv_data = {
-        "user_id": current_user["id"],
+        "user_id": user_id,
         "title": request.title or "New Conversation",
     }
     result = supabase.table("conversations").insert(conv_data).execute()
     conversation = result.data[0]
-    
+
+    # Atomically record which conversation belongs to this mode in user_preferences.
+    # This is the cross-device source of truth — no fire-and-forget from the client.
+    if request.mode and request.mode in ("friend", "romantic", "adult"):
+        prefs = dict(current_user.get("user_preferences") or {})
+        mode_convs = dict(prefs.get("mode_conversations") or {})
+        mode_convs[request.mode] = str(conversation["id"])
+        prefs["mode_conversations"] = mode_convs
+        supabase.table("users").update({"user_preferences": prefs}).eq("id", user_id).execute()
+
     return ConversationResponse(**conversation, messages=[])
 
 
@@ -130,3 +140,16 @@ async def delete_conversation(
     supabase.table("conversations").delete().eq("id", str(conversation_id)).execute()
     
     return {"success": True, "message": "Conversation deleted"}
+
+
+@router.get("/messages/all")
+async def get_all_messages(
+    limit: int = Query(500, ge=1, le=2000),
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
+):
+    """Get all messages for the user across all conversations (for mood timeline)."""
+    result = supabase.table("messages").select("emotion_tags").eq("user_id", current_user["id"]).order("created_at", desc=True).limit(limit).execute()
+    
+    messages = result.data or []
+    return {"messages": messages}

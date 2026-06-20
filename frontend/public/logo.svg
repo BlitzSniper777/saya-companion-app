@@ -1,16 +1,14 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="64" height="64" rx="16" fill="url(#bgGradient)"/>
-  <path d="M32 12C20.7 12 12 20.7 12 32C12 43.3 20.7 52 32 52C43.3 52 52 43.3 52 32C52 20.7 43.3 12 32 12Z" stroke="url(#strokeGradient)" stroke-width="2"/>
-  <path d="M20 32C20 26 25 21 32 21C39 21 44 26 44 32" stroke="url(#strokeGradient)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M20 32C20 38 25 43 32 43C39 43 44 38 44 32" stroke="url(#strokeGradient)" stroke-width="3" stroke-linecap="round"/>
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bgGradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#ec4899"/>
-    </linearGradient>
-    <linearGradient id="strokeGradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f0effa"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B0764"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
     </linearGradient>
   </defs>
+  <rect width="200" height="200" rx="44" fill="url(#bg)"/>
+  <path d="M60 74 A42 42 0 0 1 140 74" stroke="white" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.5"/>
+  <ellipse cx="76" cy="100" rx="10" ry="11" fill="white"/>
+  <ellipse cx="124" cy="98" rx="11" ry="12" fill="white"/>
+  <path d="M70 128 Q100 152 130 128" stroke="white" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M148 46 L151 54 L159 57 L151 60 L148 68 L145 60 L137 57 L145 54Z" fill="white" opacity="0.7"/>
 </svg>

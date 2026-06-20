@@ -25,6 +25,7 @@ import {
   switchCompanionMode,
   getProfile,
   toggleAdultMode,
+  updateUserPreferences,
 } from "@/lib/api";
 import type { Conversation, Message, ChatChunk, Subscription } from "@/types";
 import { OnboardingRequest } from "@/types";
@@ -71,6 +72,7 @@ export default function ChatPage() {
   const readModeConvIds = (): Record<string, string> => {
     try { return JSON.parse(localStorage.getItem("saya_mode_convs") || "{}"); } catch { return {}; }
   };
+  // Only updates local cache. Server is updated atomically at conversation-creation time by the backend.
   const writeModeConvId = (mode: string, convId: string) => {
     const next = { ...readModeConvIds(), [mode]: convId };
     localStorage.setItem("saya_mode_convs", JSON.stringify(next));
@@ -106,21 +108,40 @@ export default function ChatPage() {
       setDailyMessageCount(sub.daily_message_count);
       setDailyMessageLimit(sub.daily_message_limit);
 
-      const stored = readModeConvIds();
+      // Server prefs are the authoritative source — written atomically at conversation creation.
+      // Local cache is only used when server has nothing yet (first ever load on this device).
+      const serverModeConvs: Record<string, string> =
+        (userRes.user_preferences as any)?.mode_conversations || {};
+      const localModeConvs = readModeConvIds();
+      // Server wins: spread server over local so server values override stale local ones.
+      const stored: Record<string, string> = { ...localModeConvs, ...serverModeConvs };
+
+      // Write merged state to localStorage for fast subsequent loads.
+      localStorage.setItem("saya_mode_convs", JSON.stringify(stored));
       setModeConvIds(stored);
 
-      // Restore the conversation for the current mode, or pick the first/create one
       const storedId = stored[currentMode];
-      const target = storedId ? data.find(c => c.id === storedId) : null;
+      const storedTarget = storedId ? data.find(c => c.id === storedId) : null;
 
-      if (target) {
-        setCurrentConversation(target);
-        const convData = await getConversation(target.id);
+      if (storedTarget) {
+        setCurrentConversation(storedTarget);
+        const convData = await getConversation(storedTarget.id);
+        setMessages(convData.messages);
+        setIsLoading(false);
+      } else if (data.length > 0) {
+        // No stored conv for this mode yet — assign the most recent one.
+        // Also write to server so other devices pick up the same assignment.
+        const mostRecent = data[0];
+        writeModeConvId(currentMode, mostRecent.id);
+        updateUserPreferences({
+          mode_conversations: { ...stored, [currentMode]: mostRecent.id },
+        }).catch(() => {});
+        setCurrentConversation(mostRecent);
+        const convData = await getConversation(mostRecent.id);
         setMessages(convData.messages);
         setIsLoading(false);
       } else {
-        // No stored conversation for this mode — always create a fresh one.
-        // Do NOT auto-pick data[0]: it could belong to a different mode (e.g. adult).
+        // First ever conversation — create one
         setIsLoading(false);
         await handleNewChat(currentMode);
       }
@@ -183,9 +204,9 @@ export default function ChatPage() {
       return;
     }
 
-    // No stored conversation for this mode yet — create one
+    // No stored conversation for this mode yet — create one (backend atomically records the mode mapping)
     try {
-      const conv = await createConversation(modeLabel);
+      const conv = await createConversation(modeLabel, mode);
       writeModeConvId(mode, conv.id);
       setConversations(prev => [conv, ...prev]);
       setCurrentConversation(conv);
@@ -212,7 +233,8 @@ export default function ChatPage() {
     if (!token) return;
     try {
       const title = newChatTitle || (forMode ? { friend: "Friend Chat", romantic: "Romantic Chat", adult: "Adult Chat" }[forMode] : undefined) || "New conversation";
-      const conv = await createConversation(title);
+      // Pass mode so the backend atomically records the mapping in user_preferences
+      const conv = await createConversation(title, forMode || undefined);
       if (forMode) writeModeConvId(forMode, conv.id);
       setConversations((prev) => [conv, ...prev]);
       setCurrentConversation(conv);

@@ -9,7 +9,6 @@ import { getInitials, formatDate } from "@/lib/utils";
 import {
   MessageSquare,
   Heart,
-  Gift,
   User,
   CreditCard,
   Settings,
@@ -23,21 +22,26 @@ import {
   Flame,
   Wallet,
 } from "lucide-react";
+import { SayaLogo } from "@/components/ui/SayaLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
 
 const navigation = [
-  { id: "chat",         label: "Chat",         icon: MessageSquare, href: "/chat" },
-  { id: "gifts",        label: "Gifts",        icon: Gift,          href: "/gifts" },
-  { id: "coins",        label: "Top Up",       icon: Wallet,        href: "/coins" },
-  { id: "affection",    label: "Bond",         icon: Flame,         href: "/affection" },
-  { id: "companion",    label: "Companion",    icon: Heart,         href: "/companion" },
-  { id: "profile",      label: "Profile",      icon: User,          href: "/profile" },
-  { id: "subscription", label: "Subscription", icon: CreditCard,    href: "/subscription" },
+  { id: "chat", label: "Chat", icon: MessageSquare, href: "/chat" },
 ];
 
-export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; onToggle?: () => void }) {
+export function Sidebar({
+  collapsed = false,
+  onToggle,
+  mobileOpen = false,
+  onClose,
+}: {
+  collapsed?: boolean;
+  onToggle?: () => void;
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   const { user, companion, subscription, logout, affectionLevel } = useAuth();
   const pathname = usePathname();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -46,29 +50,42 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
   const planLabels: Record<string, string> = {
     free: "Free",
     companion: "Companion",
-    gfbf: "GF/BF",
-    adult: "Adult",
+    gfbf: "Romantic Companion",
+    adult: "Adult Companion",
+    vip: "VIP Bundle",
   };
 
   if (!user) return null;
 
   return (
+    <>
+      {/* Mobile backdrop — clicking it closes the drawer */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
     <aside
       className={cn(
-        "sidebar transition-all duration-300 z-30 flex flex-col",
-        collapsed && "w-16"
+        "sidebar transition-all duration-300",
+        // Mobile: off-screen by default, overlay when open
+        mobileOpen ? "translate-x-0 z-50" : "-translate-x-full z-30",
+        // Desktop: always visible, z-30
+        "lg:translate-x-0 lg:z-30",
+        // Width: collapsed on desktop only; mobile open always full
+        collapsed && !mobileOpen ? "w-16" : "w-64",
       )}
     >
       {/* Logo & Toggle */}
       <div className="flex items-center justify-between h-14 px-4 border-b border-border">
         <motion.div
-          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+          className="flex-shrink-0"
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ duration: 0.5 }}
-          style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}
         >
-          <Sparkles className="w-5 h-5 text-white" />
+          <SayaLogo size={32} className="rounded-xl" />
         </motion.div>
         {!collapsed && (
           <span className="nav-brand text-lg ml-3">Saya</span>
@@ -86,7 +103,7 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
       {!collapsed && (
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <Avatar name={user.full_name || user.email} size="lg" level={affectionLevel} />
+            <Avatar src={user.user_preferences?.avatar_url} name={user.full_name || user.email} size="lg" level={affectionLevel} />
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-text truncate">{user.full_name || "Friend"}</p>
               <p className="text-xs text-dim truncate">{user.email}</p>
@@ -110,6 +127,7 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
             <Link
               key={item.id}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left",
                 isActive
@@ -125,21 +143,6 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
           );
         })}
 
-        {/* New Conversation Button */}
-        {!collapsed && (
-          <Link
-            href="/chat"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left bg-grad-brand text-white font-medium hover:shadow-lg hover:shadow-purple/30"
-            onClick={(e) => {
-              e.preventDefault();
-              // Navigate with new conversation flag
-              window.location.href = "/chat?new=true";
-            }}
-          >
-            <MessageSquare className="w-5 h-5" />
-            <span>New Chat</span>
-          </Link>
-        )}
       </nav>
 
       {/* Bottom */}
@@ -155,7 +158,7 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-dim hover:text-text hover:bg-card2 transition-colors"
               >
-                <Avatar name={user.full_name || user.email} size="sm" level={affectionLevel} />
+                <Avatar src={user.user_preferences?.avatar_url} name={user.full_name || user.email} size="sm" level={affectionLevel} />
                 <span className="font-medium flex-1 text-left truncate">{user.full_name || "Account"}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -192,5 +195,6 @@ export function Sidebar({ collapsed = false, onToggle }: { collapsed?: boolean; 
         )}
       </div>
     </aside>
+    </>
   );
 }

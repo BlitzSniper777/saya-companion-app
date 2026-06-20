@@ -1,18 +1,35 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Sparkles, Menu, Bell, Search, User, Settings, LogOut, ChevronDown, Plus } from "lucide-react";
+import { Sparkles, Menu, Bell, Search, User, Settings, LogOut, ChevronDown, Plus, Phone } from "lucide-react";
+import { SayaLogo } from "@/components/ui/SayaLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { getInitials } from "@/lib/utils";
 
+const API_URL = () => process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8007";
+
 export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
-  const { user, logout, coinBalance } = useAuth();
+  const { user, logout, coinBalance, subscription, token } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [voiceMinutes, setVoiceMinutes] = useState<number | null>(null);
+
+  const plan = subscription?.plan || "free";
+  const hasVoiceAccess = ["gfbf", "vip"].includes(plan);
+
+  useEffect(() => {
+    if (!token || !hasVoiceAccess) return;
+    fetch(`${API_URL()}/voice/credits`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setVoiceMinutes(data.balance ?? 0); })
+      .catch(() => {});
+  }, [token, hasVoiceAccess]);
 
   return (
     <header className="nav-bar">
@@ -28,13 +45,11 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
           </button>
           <div className="flex items-center gap-2">
             <motion.div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ duration: 0.5 }}
-              style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}
             >
-              <Sparkles className="w-5 h-5 text-white" />
+              <SayaLogo size={32} className="rounded-xl" />
             </motion.div>
             <span className="nav-brand text-lg hidden sm:block">Saya</span>
           </div>
@@ -52,15 +67,29 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
         </div>
 
-        {/* Right - Coins, Notifications & User Menu */}
+        {/* Right - Coins, Voice Credits, Notifications & User Menu */}
         <div className="flex items-center gap-2">
+          {/* Voice credits (Romantic/Adult plans only) */}
+          {user && hasVoiceAccess && voiceMinutes !== null && (
+            <Link
+              href="/coins"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card2 hover:bg-card border border-border transition-colors"
+            >
+              <Phone className="w-4 h-4 text-green-400 flex-shrink-0" />
+              <span className="font-bold text-sm text-text">{voiceMinutes}m</span>
+              <Plus className="w-3.5 h-3.5 text-purple ml-0.5" />
+            </Link>
+          )}
           {/* Coin balance */}
           {user && (
             <Link
               href="/coins"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card2 hover:bg-card border border-border transition-colors"
             >
-              <span className="text-yellow-400 text-base leading-none">🪙</span>
+              <span
+                className="w-4 h-4 rounded-full flex-shrink-0 inline-block"
+                style={{ background: "linear-gradient(135deg, #fbbf24, #d97706)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)" }}
+              />
               <span className="font-bold text-sm text-text">{coinBalance.toLocaleString()}</span>
               <Plus className="w-3.5 h-3.5 text-purple ml-0.5" />
             </Link>

@@ -6,7 +6,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Sparkles, Loader2, Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
+import { Loader2, Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
+import { SayaLogo } from "@/components/ui/SayaLogo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { login } from "@/lib/api";
@@ -82,13 +83,11 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <motion.div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center"
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}
           >
-            <Sparkles className="w-8 h-8 text-white" />
+            <SayaLogo size={64} className="rounded-2xl" />
           </motion.div>
         </div>
 

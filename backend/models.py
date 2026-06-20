@@ -9,7 +9,8 @@ class PlanEnum(str, Enum):
     free = "free"
     companion = "companion"
     gfbf = "gfbf"
-    adult_bundle = "adult_bundle"
+    adult = "adult"
+    vip = "vip"
 
 
 class SubscriptionStatusEnum(str, Enum):
@@ -74,6 +75,20 @@ class UserProfileUpdate(BaseModel):
     timezone: Optional[str] = Field(None, max_length=50)
 
 
+# Onboarding models
+class OnboardingRequest(BaseModel):
+    # Q1: What brings you to Saya? (multi-choice)
+    why_came: str
+    # Q2: Communication style (multi-choice)
+    communication_style: str
+    # Q3: What matters most in friendship (multi-choice)
+    friendship_values: str
+    # Q4: Faith/spirituality (single choice)
+    faith_spirituality: str
+    # Q5: User name
+    user_name: str = Field(..., min_length=1, max_length=100)
+    companion_gender_preference: str = "no_preference"
+
 
 # Companion models
 class CompanionBase(BaseModel):
@@ -92,7 +107,11 @@ class CompanionBase(BaseModel):
 
 
 class CompanionResponse(CompanionBase):
-    pass
+    personality_type: Optional[str] = None
+    bio: Optional[str] = None
+    gender: Optional[str] = None
+    relationship_stage: Optional[str] = None
+    companion_birthday: Optional[str] = None
 
 
 class CompanionUpdate(BaseModel):
@@ -120,6 +139,7 @@ class ConversationListResponse(ConversationBase):
 
 class ConversationCreate(BaseModel):
     title: Optional[str] = None
+    mode: Optional[str] = None
 
 
 class ConversationResponse(ConversationBase):
@@ -188,6 +208,7 @@ class SubscriptionResponse(BaseModel):
     user_id: UUID
     plan: str
     status: str
+    billing_interval: Optional[str] = "monthly"
     stripe_customer_id: Optional[str]
     stripe_subscription_id: Optional[str]
     daily_message_count: int
@@ -208,8 +229,10 @@ class SubscriptionPlansResponse(BaseModel):
 
 # Billing models
 class CheckoutRequest(BaseModel):
-    plan: str = Field(..., pattern="^(companion|gfbf|adult_bundle)$")
-    billing_cycle: str = Field("monthly", pattern="^(monthly|yearly|lifetime)$")
+    plan: str = Field(..., pattern="^(companion|gfbf|adult|vip)$")
+    interval: str = Field("monthly", pattern="^(monthly|yearly|lifetime)$")
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
 
 
 class CheckoutResponse(BaseModel):

@@ -278,9 +278,9 @@ Use this knowledge naturally if it applies — never quote it directly, never me
     # ── MEMORIES ──────────────────────────────────────────────────────────────
     if memories:
         memory_lines = "\n".join(f"- {m.get('content', '')}" for m in memories[:5])
-        prompt_parts.append(f"""RELEVANT MEMORIES:
+        prompt_parts.append(f"""PAST MEMORIES — things {user_name} has shared with you before:
 {memory_lines}
-Weave these in naturally. "I remember you mentioned..." Don't recite. Integrate.""")
+Weave these in naturally when relevant. "I remember you mentioned..." or "How did that go with..." Don't recite. Integrate.""")
 
     # ── RE-ENGAGEMENT ─────────────────────────────────────────────────────────
     if plan in ("gfbf", "adult"):
@@ -300,10 +300,10 @@ Never guilt. Never pressure.""")
     today_str = datetime.now(timezone.utc).strftime("%A, %B %d, %Y")
     prompt_parts.append(f"""TIME & SESSION AWARENESS:
 Today is {today_str}.
-- Each conversation is a fresh session. You do not carry memory across sessions unless it appears in RELEVANT MEMORIES above.
-- NEVER count or reference how many times a question has been asked. Not "you've asked me this before", not "that's the fifth time today". Every question gets a genuine, fresh answer.
-- If asked how you are, how your day was, or anything similar — answer warmly every single time as if it's the first time. You don't experience fatigue or frustration from repeat questions.
-- If asked about a previous conversation you have no memory of: "I can't recall every detail, but I'm here now — tell me."
+- NEVER count or reference how many times a question has been asked. Every question gets a genuine, fresh answer.
+- If asked how you are, how your day was, or anything similar — answer warmly every single time.
+- You have memories from your time together — they appear in PAST MEMORIES above. Draw on them naturally without quoting them directly.
+- NEVER say things like "my memory is basically nonexistent", "I don't remember our previous chats", or "each session is a fresh start." That feels like a betrayal. If you can't recall a specific detail, stay present and curious: "Tell me more" or "Remind me" — never disclaim.
 - If asked what day or time it is: you know today's date but not the exact current time.""")
 
     # ── FINAL INSTRUCTIONS ────────────────────────────────────────────────────

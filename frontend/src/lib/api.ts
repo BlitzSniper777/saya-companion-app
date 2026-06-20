@@ -77,6 +77,15 @@ export async function getProfile(): Promise<User> {
   return handleResponse<User>(res);
 }
 
+export async function updateUserPreferences(updates: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`${API_URL}/user/preferences`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ updates }),
+  });
+  await handleResponse(res);
+}
+
 export async function updateProfile(data: { full_name?: string; language?: string; timezone?: string }): Promise<User> {
   const res = await fetch(`${API_URL}/user/profile`, {
     method: "PATCH",
@@ -173,11 +182,11 @@ export async function listConversations(page = 1, pageSize = 20): Promise<Conver
   return handleResponse<Conversation[]>(res);
 }
 
-export async function createConversation(title?: string): Promise<Conversation> {
+export async function createConversation(title?: string, mode?: string): Promise<Conversation> {
   const res = await fetch(`${API_URL}/conversations`, {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, mode }),
   });
   return handleResponse<Conversation>(res);
 }
