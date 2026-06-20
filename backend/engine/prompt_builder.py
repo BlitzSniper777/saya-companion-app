@@ -40,7 +40,7 @@ def build_system_prompt(
     # companion_mode is the primary driver — subscription plan gates access
     if companion_mode == "adult" and sub_plan in ("adult", "vip"):
         plan = "adult"
-    elif companion_mode == "romantic" and sub_plan in ("gfbf", "adult", "vip"):
+    elif companion_mode == "romantic" and sub_plan in ("gfbf", "vip"):
         plan = "gfbf"
     else:
         plan = "companion"

@@ -36,7 +36,7 @@ type ConversationWithPreview = Conversation & { last_message_preview?: string };
 
 const MODES = [
   { id: "friend",   label: "Friend",   emoji: "😊", plans: ["free", "companion", "gfbf", "adult", "vip"] },
-  { id: "romantic", label: "Romantic", emoji: "💕", plans: ["gfbf", "adult", "vip"] },
+  { id: "romantic", label: "Romantic", emoji: "💕", plans: ["gfbf", "vip"] },
   { id: "adult",    label: "Adult",    emoji: "🔥", plans: ["adult", "vip"] },
 ] as const;
 
