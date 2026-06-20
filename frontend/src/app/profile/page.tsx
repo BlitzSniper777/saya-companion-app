@@ -2,11 +2,11 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
-import { updateProfile, deleteAccount, getCompanion, updateCompanion, getSubscription, getPlans } from "@/lib/api";
+import { updateProfile, deleteAccount, getAllMessages, changeCompanion, getCompanionCatalog, uploadAvatar, getCompanionHistory, restoreCompanion } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { Avatar } from "@/components/ui/Avatar";
@@ -17,16 +17,22 @@ import { Label } from "@/components/ui/Label";
 import { Pill } from "@/components/ui/Pill";
 import { Textarea } from "@/components/ui/Textarea";
 import {
-  User, Mail, Lock, Shield, Bell, Palette, Heart, CreditCard, Settings, Trash2, LogOut, Eye, EyeOff, Save, Loader2, X, Check, Star, Sparkles
+  User, Mail, Lock, Shield, Bell, Palette, Heart, CreditCard, Settings, Trash2, LogOut, Eye, EyeOff, Save, Loader2, X, Check, Star, Sparkles, BarChart3, Activity, TrendingUp, Heart as HeartIcon, Brain, Flame, Calendar, Zap, RefreshCw, Camera
 } from "lucide-react";
+import Link from "next/link";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { TopNav } from "@/components/layout/TopNav";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, companion, subscription, token, logout, refreshUser, setCompanion, setSubscription } = useAuth();
   const { toast } = useToast();
 
-  // Tabs
-  const [activeTab, setActiveTab] = useState<"profile" | "security" | "preferences" | "data">("profile");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Tabs - updated to 4 tabs as per requirements
+  const [activeTab, setActiveTab] = useState<"profile" | "companion" | "security" | "mood">("profile");
   
   // Profile form
   const [profileForm, setProfileForm] = useState({
@@ -46,15 +52,35 @@ export default function ProfilePage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   
-  // Preferences
-  const [companionName, setCompanionName] = useState(companion?.name || "");
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [dailyOutreach, setDailyOutreach] = useState(false);
-  const [savingPreferences, setSavingPreferences] = useState(false);
+  // Change / restore companion
+  const [changingCompanion, setChangingCompanion] = useState(false);
+  const [companionHistory, setCompanionHistory] = useState<Array<{
+    history_id: string; companion_id: string; name: string; gender: string;
+    personality_type: string; bio: string; conversation_id: string | null; changed_at: string;
+  }>>([]);
+  const [selectedHistoryId, setSelectedHistoryId] = useState("");
+  const [restoringCompanion, setRestoringCompanion] = useState(false);
+
+  // Companion picker
+  const [showCompanionPicker, setShowCompanionPicker] = useState(false);
+  const [companionCatalog, setCompanionCatalog] = useState<Array<{
+    id: string; name: string; gender: string; personality_type: string; bio: string; pronoun: string;
+    available: boolean; locked_reason: string | null;
+  }>>([]);
+  const [pickerSelectedId, setPickerSelectedId] = useState("");
+  const [pickerGenderFilter, setPickerGenderFilter] = useState<"all" | "female" | "male">("all");
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+
+  // Avatar upload
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   
   // Data
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  
+  // Mood timeline
+  const [moodData, setMoodData] = useState<Record<string, number>>({});
+  const [moodLoading, setMoodLoading] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -65,10 +91,58 @@ export default function ProfilePage() {
         timezone: user.timezone || "UTC",
       });
     }
-    if (companion) {
-      setCompanionName(companion.name);
-    }
   }, [user, companion]);
+
+  // Fetch mood data when mood tab is active
+  useEffect(() => {
+    if (activeTab === "mood" && token) {
+      fetchMoodData();
+    }
+  }, [activeTab, token]);
+
+  // Fetch companion history when companion tab is active
+  useEffect(() => {
+    if (activeTab === "companion" && token) {
+      getCompanionHistory().then(data => {
+        setCompanionHistory(data.history);
+        if (data.history.length > 0) setSelectedHistoryId(data.history[0].history_id);
+      }).catch(() => {});
+    }
+  }, [activeTab, token]);
+
+  useEffect(() => {
+    if (showCompanionPicker && companionCatalog.length === 0 && token) {
+      setLoadingCatalog(true);
+      getCompanionCatalog().then(data => {
+        setCompanionCatalog(data.companions);
+      }).catch(() => {}).finally(() => setLoadingCatalog(false));
+    }
+  }, [showCompanionPicker, token]);
+
+  const fetchMoodData = async () => {
+    if (!token) return;
+    setMoodLoading(true);
+    try {
+      // Fetch messages to get emotion_tags
+      const data = await getAllMessages(500);
+      const messages = data.messages || [];
+      
+      // Aggregate emotion tags
+      const emotions: Record<string, number> = {};
+      messages.forEach((msg: any) => {
+        if (msg.emotion_tags && Array.isArray(msg.emotion_tags)) {
+          msg.emotion_tags.forEach((emotion: string) => {
+            emotions[emotion] = (emotions[emotion] || 0) + 1;
+          });
+        }
+      });
+      setMoodData(emotions);
+    } catch (err) {
+      console.error("Failed to fetch mood data:", err);
+    } finally {
+      setMoodLoading(false);
+    }
+  };
 
   const handleProfileSave = async () => {
     if (!token) return;
@@ -95,7 +169,7 @@ export default function ProfilePage() {
       toast({ title: "Error", description: "Password must be at least 8 characters", variant: "destructive" });
       return;
     }
-    
+   
     setChangingPassword(true);
     try {
       // This would need a backend endpoint - for now just toast
@@ -108,23 +182,73 @@ export default function ProfilePage() {
     }
   };
 
-  const handleCompanionNameSave = async () => {
-    if (!token || !companion) return;
-    if (!companionName.trim()) {
-      toast({ title: "Error", description: "Companion name cannot be empty", variant: "destructive" });
+  const handleOpenPicker = () => {
+    setPickerSelectedId("");
+    setPickerGenderFilter("all");
+    setShowCompanionPicker(true);
+  };
+
+  const handleChangeCompanion = async (companionId: string) => {
+    if (!token) return;
+    setChangingCompanion(true);
+    setShowCompanionPicker(false);
+    try {
+      const modeConvs = JSON.parse(localStorage.getItem("saya_mode_convs") || "{}");
+      const currentConvId: string | undefined = modeConvs["friend"] || modeConvs["romantic"] || modeConvs["adult"] || undefined;
+      const result = await changeCompanion(currentConvId, companionId);
+      await refreshUser();
+      localStorage.removeItem("saya_mode_convs");
+      toast({ title: `Meet ${result.new_companion}!`, description: "Starting fresh with your new companion…" });
+      setTimeout(() => router.push("/chat"), 1500);
+    } catch (err: any) {
+      const msg = err?.message || "Failed to change companion";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+      setChangingCompanion(false);
+    }
+  };
+
+  const handleRestoreCompanion = async () => {
+    if (!token || !selectedHistoryId) return;
+    setRestoringCompanion(true);
+    try {
+      const result = await restoreCompanion(selectedHistoryId);
+      await refreshUser();
+      toast({ title: `Welcome back, ${result.companion_name}!`, description: "Restoring your chat…" });
+      localStorage.removeItem("saya_mode_convs");
+      if (result.conversation_id) {
+        // Store the old conversation so the chat page loads it
+        const modeConvs = { friend: result.conversation_id };
+        localStorage.setItem("saya_mode_convs", JSON.stringify(modeConvs));
+      }
+      setTimeout(() => router.push(result.conversation_id ? "/chat" : "/chat?new=true"), 1500);
+    } catch (err: any) {
+      const msg = err?.message || "Failed to restore companion";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+      setRestoringCompanion(false);
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please choose an image file", variant: "destructive" });
       return;
     }
-    
-    setSavingPreferences(true);
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Image must be under 5 MB", variant: "destructive" });
+      return;
+    }
+    setUploadingAvatar(true);
     try {
-      const updated = await updateCompanion({ name: companionName.trim() });
-      setCompanion(updated);
-      toast({ title: "Saved", description: `Companion name changed to ${companionName}` });
-    } catch (err) {
-      console.error("Failed to update companion:", err);
-      toast({ title: "Error", description: "Failed to update companion name", variant: "destructive" });
+      await uploadAvatar(file);
+      await refreshUser();
+      toast({ title: "Avatar updated", description: "Your profile picture has been saved" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err?.message || "Could not upload avatar", variant: "destructive" });
     } finally {
-      setSavingPreferences(false);
+      setUploadingAvatar(false);
+      e.target.value = "";
     }
   };
 
@@ -133,7 +257,7 @@ export default function ProfilePage() {
       toast({ title: "Error", description: "Type DELETE to confirm", variant: "destructive" });
       return;
     }
-    
+   
     setDeletingAccount(true);
     try {
       await deleteAccount();
@@ -149,45 +273,59 @@ export default function ProfilePage() {
   };
 
   const planLabels: Record<string, { label: string; color: string }> = {
-    free: { label: "Free", color: "dim" },
+    free: { label: "Free Trial", color: "dim" },
     companion: { label: "Companion", color: "purple" },
-    gfbf: { label: "GF/BF", color: "pink" },
-    adult: { label: "Adult", color: "amber" },
+    gfbf: { label: "Romantic Companion", color: "pink" },
+    adult: { label: "Adult Companion", color: "amber" },
+    vip: { label: "VIP Bundle", color: "yellow" },
   };
 
   const currentPlan = subscription?.plan || "free";
   const planInfo = planLabels[currentPlan];
 
+  // Emotion colors for gradient
+  const emotionColors: Record<string, string> = {
+    joy: "#10B981",
+    happiness: "#10B981",
+    excitement: "#F59E0B",
+    love: "#EC4899",
+    gratitude: "#8B5CF6",
+    peace: "#14B8A6",
+    sadness: "#6366F1",
+    anxiety: "#F59E0B",
+    fear: "#EF4444",
+    anger: "#EF4444",
+    frustration: "#F97316",
+    loneliness: "#8B5CF6",
+    hope: "#22C55E",
+    calm: "#14B8A6",
+    neutral: "#94A3B8",
+  };
+
+  const sortedEmotions = useMemo(() => 
+    Object.entries(moodData).sort((a, b) => b[1] - a[1]),
+  [moodData]);
+
+  const maxCount = useMemo(() => 
+    Math.max(...Object.values(moodData), 1),
+  [moodData]);
+
   return (
     <div className="min-h-screen bg-bg">
-      {/* Top Nav */}
-      <header className="nav-bar">
-        <div className="flex items-center justify-between h-full px-4">
-          <div className="flex items-center gap-2">
-            <motion.div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ duration: 0.5 }}
-              style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}
-            >
-              <Sparkles className="w-5 h-5 text-white" />
-            </motion.div>
-            <span className="nav-brand text-lg">Saya</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="hidden sm:block text-sm text-dim">
-              {user?.full_name || user?.email}
-            </span>
-            <button onClick={logout} className="btn-ghost p-2 text-dim hover:text-red">
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </header>
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileOpen={mobileSidebarOpen}
+        onClose={() => setMobileSidebarOpen(false)}
+      />
 
-      <main className="pt-16 min-h-screen pb-12">
-        <div className="max-w-4xl mx-auto px-4">
+      <main className={cn(
+        "main-content min-h-screen pb-12 transition-all duration-300",
+        sidebarCollapsed ? "lg:ml-16" : "lg:ml-64"
+      )}>
+        <TopNav onMenuClick={() => setMobileSidebarOpen(!mobileSidebarOpen)} />
+
+        <div className="max-w-4xl mx-auto px-4 pt-6">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -195,7 +333,30 @@ export default function ProfilePage() {
             className="mb-8"
           >
             <div className="flex items-center gap-4 mb-4">
-              <Avatar name={user?.full_name || user?.email} size="xl" />
+              {/* Clickable avatar with permanent camera badge */}
+              <label className="relative cursor-pointer" title="Change profile picture">
+                <Avatar
+                  src={user?.user_preferences?.avatar_url}
+                  name={user?.full_name || user?.email}
+                  size="xl"
+                />
+                <div
+                  className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center border-2 border-bg shadow-md"
+                  style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}
+                >
+                  {uploadingAvatar
+                    ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                    : <Camera className="w-3.5 h-3.5 text-white" />
+                  }
+                </div>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="sr-only"
+                  onChange={handleAvatarChange}
+                  disabled={uploadingAvatar}
+                />
+              </label>
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-bold text-text">{user?.full_name || "Friend"}</h1>
@@ -204,27 +365,28 @@ export default function ProfilePage() {
                 <p className="text-dim text-sm mt-1">{user?.email}</p>
               </div>
             </div>
-            
+           
             {/* Tab Navigation */}
-            <div className="flex gap-1 bg-bg2/50 rounded-xl p-1 border border-border">
+            <div className="flex gap-1 bg-bg2/50 rounded-xl p-1 border border-border overflow-x-auto no-scrollbar">
               {[
                 { id: "profile", label: "Profile", icon: User },
+                { id: "companion", label: "Companion", icon: Heart },
                 { id: "security", label: "Security", icon: Shield },
-                { id: "preferences", label: "Preferences", icon: Heart },
-                { id: "data", label: "Data & Privacy", icon: Shield },
+                { id: "mood", label: "Mood", icon: Activity },
               ].map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 min-h-[40px]",
                     activeTab === tab.id
                       ? "bg-card text-text shadow-sm"
                       : "text-dim hover:text-text hover:bg-card/50"
                   )}
                 >
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
+                  <tab.icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.label.split(" ")[0]}</span>
                 </button>
               ))}
             </div>
@@ -232,6 +394,7 @@ export default function ProfilePage() {
 
           {/* Tab Content */}
           <AnimatePresence mode="wait">
+            {/* PROFILE TAB */}
             {activeTab === "profile" && (
               <motion.div
                 key="profile"
@@ -323,6 +486,188 @@ export default function ProfilePage() {
               </motion.div>
             )}
 
+            {/* COMPANION TAB */}
+            {activeTab === "companion" && (
+              <motion.div
+                key="companion"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-4"
+              >
+                {/* Companion identity card */}
+                <Card className="p-6">
+                  <h2 className="text-lg font-bold text-text mb-6 flex items-center gap-2">
+                    <Heart className="w-5 h-5 text-pink" />
+                    Your Companion
+                  </h2>
+                  <div className="flex items-center gap-4 mb-6">
+                    <Avatar name={companion?.name || "S"} size="xl" />
+                    <div>
+                      <p className="text-xl font-bold text-text">{companion?.name || "—"}</p>
+                      {companion?.personality_type && (
+                        <p className="text-sm text-dim">{companion.personality_type}</p>
+                      )}
+                      {companion?.bio && (
+                        <p className="text-xs text-muted mt-1 max-w-xs">{companion.bio}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 border-t border-border pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-text">Relationship Length</p>
+                        <p className="text-sm text-dim">Days together</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-3xl font-extrabold text-gradient-brand">{companion?.relationship_length_days || 0}</p>
+                        <p className="text-xs text-dim">days</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-text">Current Stage</p>
+                        <p className="text-sm text-dim">Your bond level</p>
+                      </div>
+                      <Pill variant="purple" className="capitalize">
+                        {companion?.relationship_stage?.replace("_", " ") || "acquaintance"}
+                      </Pill>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-text">Communication Style</p>
+                        <p className="text-sm text-dim">How she talks to you</p>
+                      </div>
+                      <Pill variant="pink">
+                        {companion?.personality_calibration?.communication_style || "Balanced"}
+                      </Pill>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Change companion card */}
+                <Card className="p-6" style={{ border: "1px solid rgba(139,92,246,0.2)", background: "rgba(139,92,246,0.03)" }}>
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}>
+                      <RefreshCw className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-text mb-1">Change Companion</h3>
+                      <p className="text-sm text-dim mb-4">
+                        Browse all 20 companions and choose who you want to connect with next. Costs 300 coins.
+                      </p>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Button
+                          onClick={handleOpenPicker}
+                          disabled={changingCompanion}
+                          className="btn-primary"
+                        >
+                          {changingCompanion ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Switching...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Choose Companion — 300{' '}
+                              <span className="inline-block w-3.5 h-3.5 rounded-full align-middle ml-0.5" style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)' }} />
+                            </>
+                          )}
+                        </Button>
+                        <Link href="/coins" className="text-xs text-muted hover:text-purple transition-colors">
+                          Get coins →
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Restore previous companion */}
+                {companionHistory.length > 0 && (
+                  <Card className="p-6" style={{ border: "1px solid rgba(236,72,153,0.2)", background: "rgba(236,72,153,0.03)" }}>
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: "linear-gradient(135deg, #ec4899, #f59e0b)" }}>
+                        <Heart className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-text mb-1">Restore Previous Companion</h3>
+                        <p className="text-sm text-dim mb-4">
+                          Bring back an old companion and restore your chat history with them.
+                        </p>
+
+                        {/* Dropdown */}
+                        <select
+                          value={selectedHistoryId}
+                          onChange={e => setSelectedHistoryId(e.target.value)}
+                          className="input-field w-full mb-4"
+                          disabled={restoringCompanion}
+                        >
+                          {companionHistory.map(entry => {
+                            const date = new Date(entry.changed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                            return (
+                              <option key={entry.history_id} value={entry.history_id}>
+                                {entry.name}{entry.personality_type ? ` — ${entry.personality_type}` : ""} (had until {date})
+                              </option>
+                            );
+                          })}
+                        </select>
+
+                        {/* Preview of selected */}
+                        {selectedHistoryId && (() => {
+                          const sel = companionHistory.find(h => h.history_id === selectedHistoryId);
+                          return sel ? (
+                            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-card2">
+                              <Avatar name={sel.name} size="md" />
+                              <div>
+                                <p className="font-semibold text-text">{sel.name}</p>
+                                <p className="text-xs text-dim">{sel.personality_type}</p>
+                                {sel.conversation_id
+                                  ? <p className="text-xs text-green mt-0.5">Chat history available</p>
+                                  : <p className="text-xs text-muted mt-0.5">No saved chat — fresh start</p>
+                                }
+                              </div>
+                            </div>
+                          ) : null;
+                        })()}
+
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <Button
+                            onClick={handleRestoreCompanion}
+                            disabled={restoringCompanion || !selectedHistoryId}
+                            className="btn-primary"
+                            style={{ background: "linear-gradient(135deg, #ec4899, #f59e0b)" }}
+                          >
+                            {restoringCompanion ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Restoring...
+                              </>
+                            ) : (
+                              <>
+                                <Heart className="w-4 h-4 mr-2" />
+                                Restore — 800{' '}
+                                <span className="inline-block w-3.5 h-3.5 rounded-full align-middle ml-0.5" style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)' }} />
+                              </>
+                            )}
+                          </Button>
+                          <Link href="/coins" className="text-xs text-muted hover:text-purple transition-colors">
+                            Get coins →
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+              </motion.div>
+            )}
+
+            {/* SECURITY TAB */}
             {activeTab === "security" && (
               <motion.div
                 key="security"
@@ -410,108 +755,20 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                 </Card>
-              </motion.div>
-            )}
 
-            {activeTab === "preferences" && (
-              <motion.div
-                key="preferences"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-              >
-                <Card className="p-6">
-                  <h2 className="text-lg font-bold text-text mb-6 flex items-center gap-2">
-                    <Heart className="w-5 h-5 text-pink" />
-                    Companion Preferences
-                  </h2>
-                  
-                  <div className="space-y-6">
-                    <div>
-                      <Label htmlFor="companion_name">Companion Name</Label>
-                      <Input
-                        id="companion_name"
-                        value={companionName}
-                        onChange={(e) => setCompanionName(e.target.value)}
-                        placeholder="Companion's name"
-                      />
-                      <p className="text-xs text-muted mt-1">This changes how your companion introduces themselves.</p>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-text">Push Notifications</p>
-                        <p className="text-sm text-dim">Receive notifications when Saya sends a message</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={notificationsEnabled}
-                          onChange={(e) => setNotificationsEnabled(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-card2 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple"></div>
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-text">Daily Morning Outreach</p>
-                        <p className="text-sm text-dim">Saya messages you each morning (Companion tier+)</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={dailyOutreach}
-                          onChange={(e) => setDailyOutreach(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-card2 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple"></div>
-                      </label>
-                    </div>
-                    
-                    <Button onClick={handleCompanionNameSave} disabled={savingPreferences} className="btn-primary w-full sm:w-auto">
-                      {savingPreferences ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-4 h-4 mr-2" />
-                          Save Preferences
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </Card>
-              </motion.div>
-            )}
-
-            {activeTab === "data" && (
-              <motion.div
-                key="data"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-              >
-                <Card className="p-6">
-                  <h2 className="text-lg font-bold text-text mb-6">Data & Privacy</h2>
-                  <p className="text-dim mb-6">Manage your personal data and account deletion.</p>
-                  
-                  <div className="space-y-6">
-                    <div className="p-4 bg-card2 rounded-xl border border-border">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-text">Export Your Data</p>
-                          <p className="text-sm text-dim">Download a copy of all your conversations and preferences</p>
-                        </div>
-                        <Button variant="secondary" disabled>
-                          <span className="text-sm">Coming Soon</span>
-                        </Button>
-                      </div>
-                    </div>
-                    
+                {/* Account Deletion */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6"
+                >
+                  <Card className="p-6">
+                    <h2 className="text-lg font-bold text-text mb-6 flex items-center gap-2">
+                      <Trash2 className="w-5 h-5 text-red" />
+                      Account Deletion (GDPR)
+                    </h2>
+                    <p className="text-dim mb-6">Permanently delete your account and all associated data.</p>
+                   
                     <div className="p-4 bg-red/5 border-red/20 border rounded-xl">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
@@ -550,8 +807,8 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     </div>
-                    
-                    <div className="p-4 bg-card2 rounded-xl border border-border">
+                   
+                    <div className="p-4 bg-card2 rounded-xl border border-border mt-4">
                       <h4 className="font-semibold text-text mb-3">Your Rights (GDPR)</h4>
                       <ul className="space-y-2 text-sm text-dim">
                         <li>• Right to access your personal data</li>
@@ -566,13 +823,287 @@ export default function ProfilePage() {
                         Contact privacy@saya.app for any data requests. We respond within 30 days.
                       </p>
                     </div>
+                  </Card>
+                </motion.div>
+              </motion.div>
+            )}
+
+            {/* MOOD TIMELINE TAB */}
+            {activeTab === "mood" && (
+              <motion.div
+                key="mood"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                {/* Premium gate for free tier */}
+                {currentPlan === "free" && (
+                  <Card className="p-6 text-center mb-6" style={{ border: "1px solid rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.05)" }}>
+                    <Activity className="w-12 h-12 mx-auto mb-4 text-purple-500 opacity-50" />
+                    <h3 className="text-xl font-bold text-text mb-2">Mood Timeline is a Premium Feature</h3>
+                    <p className="text-dim mb-4">Unlock your emotional pattern visualization with Companion plan or higher.</p>
+                    <Link href="/subscription">
+                      <Button className="btn-primary">Upgrade to Unlock</Button>
+                    </Link>
+                    <p className="text-xs text-muted mt-3">Free Trial users can preview with sample data below.</p>
+                  </Card>
+                )}
+
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-bold text-text flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-purple-500" />
+                      Mood Timeline
+                    </h2>
+                    {moodLoading && <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />}
                   </div>
+
+                  {moodLoading ? (
+                    <div className="h-64 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                    </div>
+                  ) : sortedEmotions.length === 0 ? (
+                    <div className="text-center py-16 text-dim">
+                      <Activity className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                      <p className="text-lg font-medium text-text mb-2">No mood data yet</p>
+                      <p className="text-sm">Start chatting with Saya to build your emotional timeline.</p>
+                      <p className="text-xs text-muted mt-2">Emotions are detected from your conversations and displayed here.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Summary stats */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                        {[
+                          { label: "Total Emotions", value: Object.values(moodData).reduce((a, b) => a + b, 0), icon: HeartIcon, color: "#EC4899" },
+                          { label: "Unique Emotions", value: Object.keys(moodData).length, icon: Brain, color: "#8B5CF6" },
+                          { label: "Top Emotion", value: sortedEmotions[0]?.[0] || "—", icon: Star, color: "#F59E0B" },
+                          { label: "Conversations", value: "—", icon: Zap, color: "#14B8A6" },
+                        ].map((stat, i) => (
+                          <div key={i} className="glass-card p-4 text-center" style={{ background: `rgba(${parseInt(stat.color.slice(1,3),16)},${parseInt(stat.color.slice(3,5),16)},${parseInt(stat.color.slice(5,7),16)},0.1)` }}>
+                            <stat.icon className="w-5 h-5 mx-auto mb-2" style={{ color: stat.color }} />
+                            <p className="text-xl font-extrabold text-text">{typeof stat.value === 'string' ? stat.value : stat.value.toLocaleString()}</p>
+                            <p className="text-xs text-dim">{stat.label}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Bar Chart */}
+                      <div className="space-y-4">
+                        {sortedEmotions.slice(0, 12).map(([emotion, count], index) => {
+                          const color = emotionColors[emotion] || "#8B5CF6";
+                          const percentage = (count / maxCount) * 100;
+                          return (
+                            <motion.div
+                              key={emotion}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              className="group"
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                                  <span className="text-sm font-medium text-text capitalize">{emotion}</span>
+                                </div>
+                                <span className="text-xs text-dim font-mono">{count}</span>
+                              </div>
+                              <div className="w-full h-3 rounded-full bg-bg2 overflow-hidden relative">
+                                <motion.div
+                                  className="h-full rounded-full"
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${percentage}%` }}
+                                  transition={{ duration: 0.6, ease: "easeOut" }}
+                                  style={{ background: `linear-gradient(90deg, ${color}, ${color}dd)` }}
+                                />
+                                {/* Gradient overlay */}
+                                <div className="absolute inset-0 rounded-full" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1))" }} />
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Area chart placeholder */}
+                      <div className="mt-8 p-4 bg-bg2/50 rounded-xl border border-border/50">
+                        <p className="text-dim text-sm text-center">
+                          <strong>Area chart view coming soon</strong> — This will show your emotional patterns over time (weekly/monthly trends).
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </Card>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Companion Picker Modal */}
+      <AnimatePresence>
+        {showCompanionPicker && (() => {
+          const filteredCatalog = pickerGenderFilter === "all"
+            ? companionCatalog
+            : companionCatalog.filter(c => c.gender === pickerGenderFilter);
+          const pickerSelected = companionCatalog.find(c => c.id === pickerSelectedId);
+
+          return (
+            <motion.div
+              key="picker-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+              onClick={(e) => { if (e.target === e.currentTarget) setShowCompanionPicker(false); }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="w-full max-w-2xl max-h-[88vh] flex flex-col rounded-2xl overflow-hidden"
+                style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+                  <div>
+                    <h2 className="text-lg font-bold text-text">Choose Your Companion</h2>
+                    <p className="text-xs text-dim mt-0.5">20 companions · 300 coins to switch</p>
+                  </div>
+                  <button
+                    onClick={() => setShowCompanionPicker(false)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-dim hover:text-text hover:bg-card transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Gender filter */}
+                <div className="px-6 pt-4 pb-2 flex gap-2 flex-shrink-0">
+                  {(["all", "female", "male"] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setPickerGenderFilter(f)}
+                      className={cn(
+                        "px-4 py-1.5 rounded-full text-sm font-medium transition-all",
+                        pickerGenderFilter === f
+                          ? "text-white"
+                          : "text-dim hover:text-text bg-card hover:bg-card2"
+                      )}
+                      style={pickerGenderFilter === f
+                        ? { background: f === "female" ? "linear-gradient(135deg, #ec4899, #8b5cf6)" : f === "male" ? "linear-gradient(135deg, #3b82f6, #06b6d4)" : "linear-gradient(135deg, #8b5cf6, #ec4899)" }
+                        : {}
+                      }
+                    >
+                      {f === "all" ? "All" : f === "female" ? "♀ Female" : "♂ Male"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Companion grid */}
+                <div className="overflow-y-auto flex-1 px-6 pb-4">
+                  {loadingCatalog ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                      {filteredCatalog.map(c => {
+                        const isSelected = c.id === pickerSelectedId;
+                        const isFemale = c.gender === "female";
+                        const isLocked = !c.available;
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => c.available && setPickerSelectedId(c.id)}
+                            disabled={isLocked}
+                            className={cn(
+                              "relative text-left p-4 rounded-xl border transition-all",
+                              isLocked
+                                ? "opacity-40 cursor-not-allowed border-border bg-card"
+                                : isSelected
+                                  ? "border-transparent shadow-lg"
+                                  : "border-border bg-card hover:border-purple/50 hover:bg-card2 cursor-pointer"
+                            )}
+                            style={isSelected ? {
+                              border: "1px solid transparent",
+                              background: `linear-gradient(var(--card), var(--card)) padding-box, linear-gradient(135deg, ${isFemale ? "#ec4899, #8b5cf6" : "#3b82f6, #06b6d4"}) border-box`,
+                            } : {}}
+                          >
+                            <div className="flex items-start gap-3">
+                              <Avatar name={c.name} size="md" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-text">{c.name}</span>
+                                  <span
+                                    className="text-xs px-2 py-0.5 rounded-full font-medium"
+                                    style={{
+                                      background: isFemale ? "rgba(236,72,153,0.15)" : "rgba(59,130,246,0.15)",
+                                      color: isFemale ? "#ec4899" : "#3b82f6",
+                                    }}
+                                  >
+                                    {isFemale ? "♀" : "♂"} {c.gender}
+                                  </span>
+                                  {c.locked_reason === "current" && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple/20 text-purple font-medium">Current</span>
+                                  )}
+                                  {c.locked_reason === "in_history" && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">Restore to unlock</span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-purple mt-0.5 font-medium">{c.personality_type}</p>
+                                <p className="text-xs text-dim mt-1 line-clamp-2">{c.bio}</p>
+                              </div>
+                              {isSelected && (
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                                  style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}>
+                                  <Check className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4 flex-shrink-0">
+                  <div className="text-sm text-dim">
+                    {pickerSelected
+                      ? <span>Selected: <span className="font-semibold text-text">{pickerSelected.name}</span> · {pickerSelected.personality_type}</span>
+                      : "Select a companion to continue"
+                    }
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button
+                      onClick={() => setShowCompanionPicker(false)}
+                      className="btn-secondary"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => pickerSelectedId && handleChangeCompanion(pickerSelectedId)}
+                      disabled={!pickerSelectedId || changingCompanion}
+                      className="btn-primary"
+                    >
+                      {changingCompanion ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Switching...</>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 mr-2" />
+                          Choose {pickerSelected?.name || "Companion"} — 300{' '}
+                          <span className="inline-block w-3.5 h-3.5 rounded-full align-middle ml-0.5" style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)' }} />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 }

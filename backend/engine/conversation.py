@@ -155,7 +155,7 @@ async def handle_chat_stream(
                     error_text = await response.aread()
                     yield f"data: {json.dumps({'type': 'error', 'error': f'Nous API error: {error_text.decode()}'})}\n\n"
                     return
-                
+
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
                         data_str = line[6:]
@@ -175,6 +175,12 @@ async def handle_chat_stream(
         yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
         return
     
+    # Safety: if Nous returned nothing, yield a soft fallback so the user isn't left hanging
+    if not full_response.strip():
+        companion_name_fb = companion.get("name", "Saya")
+        full_response = f"Hey… I'm here. Tell me what's on your mind."
+        yield f"data: {json.dumps({'type': 'chunk', 'content': full_response})}\n\n"
+
     # Check for crisis keywords
     crisis_keywords = settings.CRISIS_KEYWORDS
     user_message_lower = request.message.lower()

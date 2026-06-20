@@ -38,6 +38,22 @@ export async function register(data: {
   return handleResponse<TokenResponse>(res);
 }
 
+export async function submitOnboarding(data: {
+  why_came: string;
+  communication_style: string;
+  friendship_values: string;
+  faith_spirituality: string;
+  user_name: string;
+  companion_gender_preference?: string;
+}): Promise<{ success: boolean; message: string; companion_name: string; redirect: string }> {
+  const res = await fetch(`${API_URL}/user/onboarding`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
 export async function login(data: { email: string; password: string }): Promise<TokenResponse> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
@@ -70,19 +86,43 @@ export async function updateProfile(data: { full_name?: string; language?: strin
   return handleResponse<User>(res);
 }
 
-
-export async function switchCompanionMode(mode: "friend" | "romantic" | "adult"): Promise<{ mode: string }> {
-  const res = await fetch(`${API_URL}/companion/mode?mode=${mode}`, {
+export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("saya_token") : null;
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_URL}/user/avatar`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
   });
   return handleResponse(res);
 }
 
-export async function changeCompanion(): Promise<{ success: boolean; new_companion: string; personality: string; coins_spent: number }> {
+
+export async function getCompanionCatalog(): Promise<{ companions: Array<{ id: string; name: string; gender: string; personality_type: string; bio: string; pronoun: string; available: boolean; locked_reason: string | null }> }> {
+  const res = await fetch(`${API_URL}/companion/catalog`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
+export async function changeCompanion(conversationId?: string, companionId?: string): Promise<{ success: boolean; new_companion: string; personality: string; coins_spent: number }> {
   const res = await fetch(`${API_URL}/companion/change`, {
     method: "POST",
     headers: getAuthHeaders(),
+    body: JSON.stringify({ conversation_id: conversationId ?? null, companion_id: companionId ?? null }),
+  });
+  return handleResponse(res);
+}
+
+export async function getCompanionHistory(): Promise<{ history: Array<{ history_id: string; companion_id: string; name: string; gender: string; personality_type: string; bio: string; conversation_id: string | null; changed_at: string }> }> {
+  const res = await fetch(`${API_URL}/companion/history`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
+export async function restoreCompanion(historyId: string): Promise<{ success: boolean; companion_name: string; personality: string; coins_spent: number; conversation_id: string | null }> {
+  const res = await fetch(`${API_URL}/companion/restore`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ history_id: historyId }),
   });
   return handleResponse(res);
 }
@@ -110,7 +150,7 @@ export async function updateCompanion(data: { name?: string; mode?: string; pers
   return handleResponse<Companion>(res);
 }
 
-export async function switchCompanionMode(mode: "friend" | "romantic"): Promise<Companion> {
+export async function switchCompanionMode(mode: "friend" | "romantic" | "adult"): Promise<Companion> {
   const res = await fetch(`${API_URL}/companion/mode`, {
     method: "POST",
     headers: getAuthHeaders(),
@@ -149,6 +189,11 @@ export async function getConversation(id: string): Promise<Conversation & { mess
 
 export async function getConversationMessages(id: string, page = 1, pageSize = 50): Promise<{ messages: Message[]; has_more: boolean }> {
   const res = await fetch(`${API_URL}/conversations/${id}/messages?page=${page}&page_size=${pageSize}`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
+export async function getAllMessages(limit = 500): Promise<{ messages: any[] }> {
+  const res = await fetch(`${API_URL}/conversations/messages/all?limit=${limit}`, { headers: getAuthHeaders() });
   return handleResponse(res);
 }
 
@@ -238,6 +283,20 @@ export async function openBillingPortal(returnUrl?: string): Promise<{ portal_ur
 // Voice
 export async function getVoiceCredits(): Promise<{ balance: number; plan: string; tier_limits: Record<string, number> }> {
   const res = await fetch(`${API_URL}/voice/credits`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
+export async function getVoicePackages(): Promise<{ packages: any[] }> {
+  const res = await fetch(`${API_URL}/voice/packages`, { headers: getAuthHeaders() });
+  return handleResponse(res);
+}
+
+export async function purchaseVoicePackage(packageId: string): Promise<{ success: boolean; minutes_added: number; new_balance: number }> {
+  const res = await fetch(`${API_URL}/voice/purchase`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ package_id: packageId }),
+  });
   return handleResponse(res);
 }
 

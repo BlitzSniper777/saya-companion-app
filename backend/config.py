@@ -41,8 +41,8 @@ class Settings:
     # Nous Portal — auth.json path (local dev) or raw token (production)
     NOUS_AUTH_PATH: str = os.getenv("NOUS_AUTH_PATH", "")
     NOUS_TOKEN: str = os.getenv("NOUS_TOKEN", "")  # production: set this directly
-    NOUS_INFERENCE_URL: str = "https://inference-api.nousresearch.com/v1"
-    NOUS_MODEL: str = "nvidia/nemotron-3-ultra:free"
+    NOUS_INFERENCE_URL: str = os.getenv("NOUS_INFERENCE_URL", "https://inference-api.nousresearch.com/v1")
+    NOUS_MODEL: str = os.getenv("NOUS_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
 
     # Backend
     PORT: int = int(os.getenv("PORT", "8007"))

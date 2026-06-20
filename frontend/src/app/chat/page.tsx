@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -23,16 +23,25 @@ import {
   getSubscription,
   getCompanion,
   switchCompanionMode,
+  getProfile,
+  toggleAdultMode,
 } from "@/lib/api";
 import type { Conversation, Message, ChatChunk, Subscription } from "@/types";
-import { X, Plus, Trash2, MessageSquare, Search, ChevronDown, MoreVertical } from "lucide-react";
+import { OnboardingRequest } from "@/types";
+import { X, Plus, Trash2, MessageSquare, Search, ChevronDown, MoreVertical, Gift } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 type ConversationWithPreview = Conversation & { last_message_preview?: string };
 
+const MODES = [
+  { id: "friend",   label: "Friend",   emoji: "😊", plans: ["free", "companion", "gfbf", "adult", "vip"] },
+  { id: "romantic", label: "Romantic", emoji: "💕", plans: ["gfbf", "vip"] },
+  { id: "adult",    label: "Adult",    emoji: "🔥", plans: ["adult", "vip"] },
+] as const;
+
 export default function ChatPage() {
   const router = useRouter();
-  const { user, token, isAuthenticated, refreshUser } = useAuth();
+  const { user, token, isAuthenticated, refreshUser, setSubscription } = useAuth();
   const { toast } = useToast();
 
   // State
@@ -47,100 +56,172 @@ export default function ChatPage() {
   const [dailyMessageCount, setDailyMessageCount] = useState(0);
   const [dailyMessageLimit, setDailyMessageLimit] = useState(15);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [newChatTitle, setNewChatTitle] = useState("");
   const [companionMode, setCompanionMode] = useState<"friend" | "romantic" | "adult">("friend");
   const [companionName, setCompanionName] = useState("Saya");
   const [plan, setPlan] = useState<string>("free");
+  const [onboardingCompleted, setOnboardingCompleted] = useState(true);
+  // Persistent conversation ID per mode — each tab keeps its own chat history
+  const [modeConvIds, setModeConvIds] = useState<Record<string, string>>({});
   const chatContainerRef = useRef<ChatContainerHandle>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Read ?new=true from URL without useSearchParams (avoids Suspense requirement)
-  const shouldCreateNew = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("new") === "true"
-    : false;
+  const readModeConvIds = (): Record<string, string> => {
+    try { return JSON.parse(localStorage.getItem("saya_mode_convs") || "{}"); } catch { return {}; }
+  };
+  const writeModeConvId = (mode: string, convId: string) => {
+    const next = { ...readModeConvIds(), [mode]: convId };
+    localStorage.setItem("saya_mode_convs", JSON.stringify(next));
+    setModeConvIds(next);
+  };
+
+  // Read ?new=true from URL once at mount — use ref so URL changes don't recreate loadConversations
+  const shouldCreateNewRef = useRef(
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("new") === "true"
+      : false
+  );
 
   // Load conversations on mount
   const loadConversations = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await listConversations();
+      const [data, comp, sub, userRes] = await Promise.all([
+        listConversations(),
+        getCompanion(),
+        getSubscription(),
+        getProfile(),
+      ]);
+
       setConversations(data);
-      
-      // Auto-select first conversation or create new
-      if (data.length > 0 && !currentConversation) {
-        const firstConv = data[0];
-        setCurrentConversation(firstConv);
-        const convData = await getConversation(firstConv.id);
+      setOnboardingCompleted(userRes.onboarding_completed || false);
+      if (!userRes.onboarding_completed) { router.push("/onboarding"); return; }
+
+      const currentMode = (comp.mode as "friend" | "romantic" | "adult") || "friend";
+      setCompanionMode(currentMode);
+      setCompanionName(comp.name || "Saya");
+      setPlan(sub.plan || "free");
+      setDailyMessageCount(sub.daily_message_count);
+      setDailyMessageLimit(sub.daily_message_limit);
+
+      const stored = readModeConvIds();
+      setModeConvIds(stored);
+
+      // Restore the conversation for the current mode, or pick the first/create one
+      const storedId = stored[currentMode];
+      const target = storedId ? data.find(c => c.id === storedId) : null;
+
+      if (target) {
+        setCurrentConversation(target);
+        const convData = await getConversation(target.id);
         setMessages(convData.messages);
-        const sub = await getSubscription();
-        setDailyMessageCount(sub.daily_message_count);
-        setDailyMessageLimit(sub.daily_message_limit);
-      } else if (data.length === 0 || shouldCreateNew) {
-        await handleNewChat();
+        setIsLoading(false);
+      } else {
+        // No stored conversation for this mode — always create a fresh one.
+        // Do NOT auto-pick data[0]: it could belong to a different mode (e.g. adult).
+        setIsLoading(false);
+        await handleNewChat(currentMode);
       }
-      setIsLoading(false);
     } catch (err) {
       console.error("Failed to load conversations:", err);
       setIsLoading(false);
     }
-  }, [token, currentConversation, shouldCreateNew]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, router]);
+
+  // Check onboarding on user state change
+  useEffect(() => {
+    if (token) {
+      getProfile().then(userRes => {
+        setOnboardingCompleted(userRes.onboarding_completed || false);
+        if (!userRes.onboarding_completed) {
+          router.push("/onboarding");
+        }
+      }).catch(() => {});
+    }
+  }, [token, router]);
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
 
-  // Load companion + subscription plan for mode toggle
-  useEffect(() => {
-    if (!token) return;
-    Promise.all([getCompanion(), getSubscription()]).then(([comp, sub]) => {
-      setCompanionMode((comp.mode as any) || "friend");
-      setCompanionName(comp.name || "Saya");
-      setPlan(sub.plan || "free");
-    }).catch(() => {});
-  }, [token]);
+  // Switch mode tab — loads or creates that mode's persistent conversation
+  const handleTabSwitch = async (mode: "friend" | "romantic" | "adult") => {
+    if (mode === companionMode || isStreaming) return;
 
-  const handleModeToggle = async (mode: "friend" | "romantic" | "adult") => {
     try {
       await switchCompanionMode(mode);
-      setCompanionMode(mode);
-      toast({ title: mode === "friend" ? "Switched to Friend mode" : mode === "romantic" ? `${companionName} is now your partner 💕` : `Intimate mode on 🔥` });
     } catch (err: any) {
       toast({ title: "Can't switch mode", description: err?.message, variant: "destructive" });
+      return;
+    }
+
+    setCompanionMode(mode);
+    const modeLabel = { friend: "Friend Chat", romantic: "Romantic Chat", adult: "Adult Chat" }[mode];
+    toast({
+      title: mode === "friend" ? "Friend mode 😊" :
+             mode === "romantic" ? `${companionName} is now your partner 💕` :
+             "Intimate mode 🔥",
+    });
+
+    // Load this mode's stored conversation, or create a new one
+    const stored = readModeConvIds();
+    const storedId = stored[mode];
+    const found = storedId ? conversations.find(c => c.id === storedId) : null;
+
+    if (found) {
+      setCurrentConversation(found);
+      setIsLoading(true);
+      try {
+        const data = await getConversation(found.id);
+        setMessages(data.messages);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // No stored conversation for this mode yet — create one
+    try {
+      const conv = await createConversation(modeLabel);
+      writeModeConvId(mode, conv.id);
+      setConversations(prev => [conv, ...prev]);
+      setCurrentConversation(conv);
+      setMessages([]);
+    } catch {
+      toast({ title: "Error", description: "Failed to create conversation", variant: "destructive" });
     }
   };
 
-  // Load messages when conversation changes
+  // Silently refresh messages when conversation changes (no spinner — isLoading is managed by loadConversations)
   useEffect(() => {
     if (!currentConversation || !token) return;
-    setIsLoading(true);
     getConversation(currentConversation.id)
       .then((data) => {
         setMessages(data.messages);
-        setIsLoading(false);
       })
       .catch((err) => {
         console.error("Failed to load messages:", err);
-        setIsLoading(false);
       });
   }, [currentConversation, token]);
 
-  const handleNewChat = async () => {
+  const handleNewChat = async (forMode?: string | React.MouseEvent) => {
+    if (forMode && typeof forMode !== "string") forMode = undefined;
     if (!token) return;
     try {
-      const title = newChatTitle || "New conversation";
+      const title = newChatTitle || (forMode ? { friend: "Friend Chat", romantic: "Romantic Chat", adult: "Adult Chat" }[forMode] : undefined) || "New conversation";
       const conv = await createConversation(title);
-      
+      if (forMode) writeModeConvId(forMode, conv.id);
       setConversations((prev) => [conv, ...prev]);
       setCurrentConversation(conv);
       setMessages([]);
       setNewChatTitle("");
       setShowNewChatModal(false);
-      
       const sub = await getSubscription();
       setDailyMessageCount(sub.daily_message_count);
       setDailyMessageLimit(sub.daily_message_limit);
-      
       router.push(`/chat`);
     } catch (err) {
       console.error("Failed to create conversation:", err);
@@ -171,7 +252,7 @@ export default function ChatPage() {
 
   const handleSendMessage = async (message: string) => {
     if (!currentConversation || isStreaming) return;
-    
+
     setIsStreaming(true);
     setTyping(true);
     
@@ -289,45 +370,59 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen bg-bg">
-      {/* Sidebar */}
+      {/* Sidebar — supports mobile drawer via mobileOpen */}
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={handleSidebarToggle}
+        mobileOpen={mobileSidebarOpen}
+        onClose={() => setMobileSidebarOpen(false)}
       />
-      
-      {/* Main Content */}
-      <main className={cn("main-content transition-all duration-300", sidebarCollapsed && "ml-16")}>
-        {/* Top Nav */}
-        <TopNav onMenuClick={handleSidebarToggle} />
-        
-        {/* Mode Toggle — only for gfbf and adult plans */}
-        {(plan === "gfbf" || plan === "adult") && (
-          <div className="px-4 md:px-6 pt-2 pb-0 flex justify-center">
-            <div className="inline-flex items-center gap-1 glass-card p-1 rounded-2xl">
-              {(["friend", "romantic", ...(plan === "adult" ? ["adult"] : [])] as const).map((m) => {
-                const labels: Record<string, string> = { friend: "Friend", romantic: "Partner", adult: "Intimate" };
-                const emojis: Record<string, string> = { friend: "👋", romantic: "💕", adult: "🔥" };
-                return (
-                  <button
-                    key={m}
-                    onClick={() => handleModeToggle(m)}
-                    className={cn(
-                      "px-4 py-1.5 rounded-xl text-sm font-medium transition-all",
-                      companionMode === m
-                        ? "bg-purple text-white shadow-sm"
-                        : "text-dim hover:text-text hover:bg-card2"
-                    )}
-                  >
-                    <span className="mr-1">{emojis[m]}</span>{labels[m]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
-        {/* Chat Area */}
-        <div className="p-4 md:p-6 flex-1">
+      {/* Mode Tabs — fixed below TopNav, always visible regardless of scroll */}
+      <div className={cn(
+        "fixed top-14 left-0 right-0 z-30 h-12",
+        "border-b border-border/60 bg-bg/95 backdrop-blur-sm",
+        "transition-[left] duration-300",
+        sidebarCollapsed ? "lg:left-16" : "lg:left-64"
+      )}>
+        <div className="flex items-center h-full px-1">
+          {MODES.map(({ id, label, emoji, plans }) => {
+            const available = plans.includes(plan as any);
+            const active = companionMode === id;
+            return (
+              <button
+                key={id}
+                onClick={() => available && handleTabSwitch(id as any)}
+                disabled={!available}
+                title={available ? `Switch to ${label} mode` : "Requires a higher plan"}
+                className={cn(
+                  "flex items-center gap-1.5 px-4 h-full text-sm font-medium transition-all border-b-2 min-w-[80px]",
+                  active
+                    ? "border-purple text-purple"
+                    : available
+                      ? "border-transparent text-dim hover:text-text hover:border-border"
+                      : "border-transparent text-muted/40 cursor-not-allowed"
+                )}
+              >
+                <span className="text-base leading-none">{emoji}</span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Content — pt-[104px] = 56px nav + 48px tabs */}
+      <main className={cn(
+        "flex flex-col h-screen overflow-hidden transition-all duration-300",
+        "pt-[104px]",
+        sidebarCollapsed ? "lg:ml-16" : "lg:ml-64"
+      )}>
+        {/* Top Nav (fixed) */}
+        <TopNav onMenuClick={() => setMobileSidebarOpen(!mobileSidebarOpen)} />
+
+        {/* Chat Area — fills remaining height */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {currentConversation ? (
             <ChatContainer
               ref={chatContainerRef}
@@ -342,10 +437,17 @@ export default function ChatPage() {
               onSendMessage={handleSendMessage}
               onNewConversation={handleNewChat}
               onDeleteConversation={handleDeleteConversation}
+              companionMode={companionMode}
+              companionName={companionName}
+              onMessagesChanged={async () => {
+                if (currentConversation) {
+                  const convData = await getConversation(currentConversation.id);
+                  setMessages(convData.messages);
+                }
+              }}
             />
           ) : (
-            // Empty state when no conversation selected
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center p-6">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
