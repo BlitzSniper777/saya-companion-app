@@ -36,7 +36,7 @@ type ConversationWithPreview = Conversation & { last_message_preview?: string };
 
 const MODES = [
   { id: "friend",   label: "Friend",   emoji: "😊", plans: ["free", "companion", "gfbf", "adult", "vip"] },
-  { id: "romantic", label: "Romantic", emoji: "💕", plans: ["gfbf", "vip"] },
+  { id: "romantic", label: "Romantic", emoji: "💕", plans: ["gfbf", "adult", "vip"] },
   { id: "adult",    label: "Adult",    emoji: "🔥", plans: ["adult", "vip"] },
 ] as const;
 
@@ -64,8 +64,12 @@ export default function ChatPage() {
   const [companionName, setCompanionName] = useState("Saya");
   const [plan, setPlan] = useState<string>("free");
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
-  // Persistent conversation ID per mode — each tab keeps its own chat history
   const [modeConvIds, setModeConvIds] = useState<Record<string, string>>({});
+  const [adultVerified, setAdultVerified] = useState(false);
+  const [showAgeGate, setShowAgeGate] = useState(false);
+  const [ageGateDob, setAgeGateDob] = useState("");
+  const [ageGateTos, setAgeGateTos] = useState(false);
+  const [ageGateLoading, setAgeGateLoading] = useState(false);
   const chatContainerRef = useRef<ChatContainerHandle>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -107,6 +111,9 @@ export default function ChatPage() {
       setPlan(sub.plan || "free");
       setDailyMessageCount(sub.daily_message_count);
       setDailyMessageLimit(sub.daily_message_limit);
+
+      // Pull age-verification status from server prefs
+      if ((userRes.user_preferences as any)?.adult_verified) setAdultVerified(true);
 
       // Server prefs are the authoritative source — written atomically at conversation creation.
       // Local cache is only used when server has nothing yet (first ever load on this device).
@@ -172,6 +179,12 @@ export default function ChatPage() {
   const handleTabSwitch = async (mode: "friend" | "romantic" | "adult") => {
     if (mode === companionMode || isStreaming) return;
 
+    // Adult mode requires age verification on first use
+    if (mode === "adult" && !adultVerified) {
+      setShowAgeGate(true);
+      return;
+    }
+
     try {
       await switchCompanionMode(mode);
     } catch (err: any) {
@@ -213,6 +226,39 @@ export default function ChatPage() {
       setMessages([]);
     } catch {
       toast({ title: "Error", description: "Failed to create conversation", variant: "destructive" });
+    }
+  };
+
+  const handleAgeGateSubmit = async () => {
+    if (!ageGateDob || !ageGateTos) return;
+    setAgeGateLoading(true);
+    try {
+      await toggleAdultMode(ageGateDob, ageGateTos);
+      setAdultVerified(true);
+      setShowAgeGate(false);
+      setAgeGateDob("");
+      setAgeGateTos(false);
+      setCompanionMode("adult");
+      const modeLabel = "Adult Chat";
+      toast({ title: "Adult mode enabled 🔥" });
+      const stored = readModeConvIds();
+      const storedId = stored["adult"];
+      const found = storedId ? conversations.find(c => c.id === storedId) : null;
+      if (found) {
+        setCurrentConversation(found);
+        const data = await getConversation(found.id);
+        setMessages(data.messages);
+      } else {
+        const conv = await createConversation(modeLabel, "adult");
+        writeModeConvId("adult", conv.id);
+        setConversations(prev => [conv, ...prev]);
+        setCurrentConversation(conv);
+        setMessages([]);
+      }
+    } catch (err: any) {
+      toast({ title: "Verification failed", description: err?.message, variant: "destructive" });
+    } finally {
+      setAgeGateLoading(false);
     }
   };
 
@@ -529,6 +575,75 @@ export default function ChatPage() {
                   disabled={isStreaming}
                 >
                   Start Chat
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Age verification gate for Adult mode */}
+      <AnimatePresence>
+        {showAgeGate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="glass-card max-w-md w-full mx-4 p-6"
+            >
+              <div className="text-center mb-6">
+                <div className="text-4xl mb-3">🔥</div>
+                <h3 className="text-xl font-bold text-text mb-2">Adult Mode</h3>
+                <p className="text-dim text-sm">This space contains explicit content. Age verification required.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-dim mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={ageGateDob}
+                    onChange={(e) => setAgeGateDob(e.target.value)}
+                    max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}
+                    className="input-field w-full"
+                  />
+                </div>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ageGateTos}
+                    onChange={(e) => setAgeGateTos(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-border bg-card text-purple focus:ring-purple"
+                  />
+                  <span className="text-sm text-dim">
+                    I confirm I am 18 or older and agree to the{" "}
+                    <a href="/legal/adult-tos" target="_blank" className="text-purple hover:underline">Adult Terms of Service</a>.
+                    I understand this content is explicit.
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => { setShowAgeGate(false); setAgeGateDob(""); setAgeGateTos(false); }}
+                  className="btn-secondary flex-1"
+                  disabled={ageGateLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAgeGateSubmit}
+                  disabled={!ageGateDob || !ageGateTos || ageGateLoading}
+                  className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {ageGateLoading ? "Verifying..." : "Enter Adult Mode"}
                 </button>
               </div>
             </motion.div>

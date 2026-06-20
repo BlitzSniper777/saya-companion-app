@@ -106,7 +106,7 @@ async def switch_mode(
         "free":         ["friend"],
         "companion":    ["friend"],
         "gfbf":         ["friend", "romantic"],
-        "adult":        ["friend", "adult"],
+        "adult":        ["friend", "romantic", "adult"],
         "vip":          ["friend", "romantic", "adult"],
     }
     if mode not in allowed.get(plan, ["friend"]):
@@ -157,34 +157,31 @@ async def toggle_adult_mode(
     if not request.tos_accepted:
         raise HTTPException(status_code=400, detail="Must accept Adult ToS")
 
-    comp = _get_companion(supabase, current_user["id"])
-    current_mode = comp.get("mode", "friend")
-
-    if current_mode == "adult":
-        new_mode = "romantic" if plan in ("gfbf", "adult", "vip") else "friend"
-    else:
-        if current_mode != "romantic":
-            raise HTTPException(status_code=400, detail="Must enable Romantic mode first before Adult mode")
-        new_mode = "adult"
+    user_id = current_user["id"]
 
     supabase.table("companions").update({
-        "mode": new_mode,
+        "mode": "adult",
         "updated_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("user_id", current_user["id"]).execute()
+    }).eq("user_id", user_id).execute()
 
+    # Record consent + mark age-verified so future switches skip the gate
     supabase.table("consent_logs").insert({
-        "user_id": current_user["id"],
+        "user_id": user_id,
         "consent_type": "adult_mode",
-        "consent_given": new_mode == "adult",
+        "consent_given": True,
         "details": {
             "version": "2.1",
-            "action": "enabled" if new_mode == "adult" else "disabled",
+            "action": "enabled",
             "plan": plan,
             "age_verified": True,
         },
     }).execute()
 
-    comp = _get_companion(supabase, current_user["id"])
+    prefs = _get_prefs(supabase, user_id)
+    prefs["adult_verified"] = True
+    _save_prefs(supabase, user_id, prefs)
+
+    comp = _get_companion(supabase, user_id)
     return {"mode": comp["mode"], "companion": CompanionResponse(**comp)}
 
 

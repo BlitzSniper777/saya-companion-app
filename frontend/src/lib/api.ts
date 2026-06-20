@@ -168,10 +168,11 @@ export async function switchCompanionMode(mode: "friend" | "romantic" | "adult")
   return handleResponse<Companion>(res);
 }
 
-export async function toggleAdultMode(): Promise<Companion> {
+export async function toggleAdultMode(dateOfBirth: string, tosAccepted: boolean): Promise<Companion> {
   const res = await fetch(`${API_URL}/companion/adult`, {
     method: "POST",
     headers: getAuthHeaders(),
+    body: JSON.stringify({ date_of_birth: dateOfBirth, tos_accepted: tosAccepted }),
   });
   return handleResponse<Companion>(res);
 }
