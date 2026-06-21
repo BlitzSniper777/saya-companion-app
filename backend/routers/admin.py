@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
 from supabase import Client
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
@@ -64,12 +65,29 @@ async def admin_login(request: AdminLoginRequest):
     return AdminTokenResponse(access_token=access_token)
 
 
-# Admin auth dependency - checks if current user is admin
+security_bearer = HTTPBearer(auto_error=False)
+
+
+async def verify_admin_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security_bearer),
+) -> dict:
+    """Decode admin JWT and verify is_admin flag — does NOT query the users table."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    from auth import decode_token
+    try:
+        payload = decode_token(credentials.credentials)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+    if not payload.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return payload
+
+
+# Legacy alias kept for existing endpoints that use get_current_user
 async def get_admin_current_user(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    """Verify the current user has admin privileges."""
-    # Check if user is admin via email or role
     if current_user.get("email") != ADMIN_EMAIL:
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
@@ -98,7 +116,7 @@ async def get_admin_stats(
     plan_prices = {
         "companion":    9.99,
         "gfbf":         12.99,
-        "adult_bundle": 17.99,
+        "vip": 29.99,
     }
     mrr = sum(plan_prices.get(s["plan"], 0) for s in (subs_result.data or []) if s["status"] == "active")
     
@@ -367,3 +385,48 @@ async def get_analytics(
         plan_distribution=plan_distribution,
         avg_session_length=round(avg_session, 1),
     )
+
+
+class CreditCoinsRequest(BaseModel):
+    email: str
+    amount: int
+
+
+@router.post("/credit-coins")
+async def credit_coins(
+    request: CreditCoinsRequest,
+    admin: dict = Depends(verify_admin_token),
+    supabase: Client = Depends(get_supabase),
+):
+    """Credit coins to any user by email. Admin only."""
+    user_res = supabase.table("users").select("id, email, full_name").eq("email", request.email).single().execute()
+    if not user_res.data:
+        raise HTTPException(status_code=404, detail=f"No user found with email {request.email}")
+
+    user_id = user_res.data["id"]
+
+    coins_res = supabase.table("user_coins").select("*").eq("user_id", user_id).execute()
+    current = coins_res.data[0] if coins_res.data else {"balance": 0, "total_purchased": 0}
+    new_balance = current["balance"] + request.amount
+
+    supabase.table("user_coins").upsert({
+        "user_id": user_id,
+        "balance": new_balance,
+        "total_purchased": current["total_purchased"] + request.amount,
+    }).execute()
+
+    supabase.table("coin_transactions").insert({
+        "user_id": user_id,
+        "amount": request.amount,
+        "type": "admin_credit",
+        "note": f"Admin grant: {request.amount:,} coins",
+    }).execute()
+
+    return {
+        "success": True,
+        "user": user_res.data["email"],
+        "coins_added": request.amount,
+        "new_balance": new_balance,
+    }
+
+
