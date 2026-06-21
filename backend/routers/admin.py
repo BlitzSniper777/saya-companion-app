@@ -388,8 +388,8 @@ async def get_analytics(
 
 
 class CreditCoinsRequest(BaseModel):
-    email: str
     amount: int
+    email: Optional[str] = None  # if omitted, credits the most recently created user
 
 
 @router.post("/credit-coins")
@@ -398,10 +398,16 @@ async def credit_coins(
     admin: dict = Depends(verify_admin_token),
     supabase: Client = Depends(get_supabase),
 ):
-    """Credit coins to any user by email. Admin only."""
-    user_res = supabase.table("users").select("id, email, full_name").eq("email", request.email).single().execute()
-    if not user_res.data:
-        raise HTTPException(status_code=404, detail=f"No user found with email {request.email}")
+    """Credit coins to any user by email, or the latest user if email is omitted. Admin only."""
+    if request.email:
+        user_res = supabase.table("users").select("id, email, full_name").eq("email", request.email).single().execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail=f"No user found with email {request.email}")
+    else:
+        latest = supabase.table("users").select("id, email, full_name").order("created_at", desc=True).limit(1).execute()
+        if not latest.data:
+            raise HTTPException(status_code=404, detail="No users found")
+        user_res = type("R", (), {"data": latest.data[0]})()
 
     user_id = user_res.data["id"]
 
