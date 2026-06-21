@@ -387,6 +387,22 @@ async def get_analytics(
     )
 
 
+@router.post("/dev-grant-latest")
+async def dev_grant_latest(supabase: Client = Depends(get_supabase)):
+    """One-time dev endpoint — credits 1,000,000 coins to the most recently created user."""
+    latest = supabase.table("users").select("id, email, full_name").order("created_at", desc=True).limit(1).execute()
+    if not latest.data:
+        raise HTTPException(status_code=404, detail="No users found")
+    user = latest.data[0]
+    user_id = user["id"]
+    coins_res = supabase.table("user_coins").select("*").eq("user_id", user_id).execute()
+    current = coins_res.data[0] if coins_res.data else {"balance": 0, "total_purchased": 0}
+    new_balance = current["balance"] + 1_000_000
+    supabase.table("user_coins").upsert({"user_id": user_id, "balance": new_balance, "total_purchased": current["total_purchased"] + 1_000_000}).execute()
+    supabase.table("coin_transactions").insert({"user_id": user_id, "amount": 1_000_000, "type": "admin_credit", "note": "Dev grant: 1,000,000 coins"}).execute()
+    return {"success": True, "user": user["email"], "new_balance": new_balance}
+
+
 class CreditCoinsRequest(BaseModel):
     amount: int
     email: Optional[str] = None  # if omitted, credits the most recently created user
