@@ -132,9 +132,8 @@ export default function ChatPage() {
 
       if (storedTarget) {
         setCurrentConversation(storedTarget);
-        const convData = await getConversation(storedTarget.id);
-        setMessages(convData.messages);
         setIsLoading(false);
+        // Messages loaded by the currentConversation effect below
       } else if (data.length > 0) {
         // No stored conv for this mode yet — assign the most recent one.
         // Also write to server so other devices pick up the same assignment.
@@ -144,9 +143,8 @@ export default function ChatPage() {
           mode_conversations: { ...stored, [currentMode]: mostRecent.id },
         }).catch(() => {});
         setCurrentConversation(mostRecent);
-        const convData = await getConversation(mostRecent.id);
-        setMessages(convData.messages);
         setIsLoading(false);
+        // Messages loaded by the currentConversation effect below
       } else {
         // First ever conversation — create one
         setIsLoading(false);
@@ -157,18 +155,6 @@ export default function ChatPage() {
       setIsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, router]);
-
-  // Check onboarding on user state change
-  useEffect(() => {
-    if (token) {
-      getProfile().then(userRes => {
-        setOnboardingCompleted(userRes.onboarding_completed || false);
-        if (!userRes.onboarding_completed) {
-          router.push("/onboarding");
-        }
-      }).catch(() => {});
-    }
   }, [token, router]);
 
   useEffect(() => {
