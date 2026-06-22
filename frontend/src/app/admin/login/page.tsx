@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
         throw new Error(data.detail || "Login failed");
       }
       
-      localStorage.setItem("saya_token", data.access_token);
+      localStorage.setItem("saya_admin_token", data.access_token);
       localStorage.setItem("saya_user", JSON.stringify(data.user));
       toast.success("Welcome to Saya Admin!");
       router.push("/admin/dashboard");

@@ -381,7 +381,7 @@ export async function adminLogin(email: string, password: string): Promise<{ acc
 }
 
 export async function adminGetStats(): Promise<AdminStats> {
-  const token = localStorage.getItem("saya_admin_token");
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
   const res = await fetch(`${API_URL}/admin/stats`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -389,7 +389,7 @@ export async function adminGetStats(): Promise<AdminStats> {
 }
 
 export async function adminGetUsers(page = 1, pageSize = 20, search = "", plan = "", isActive?: boolean): Promise<any> {
-  const token = localStorage.getItem("saya_admin_token");
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
   if (search) params.set("search", search);
   if (plan) params.set("plan", plan);
@@ -400,13 +400,13 @@ export async function adminGetUsers(page = 1, pageSize = 20, search = "", plan =
 }
 
 export async function adminGetUser(id: string): Promise<any> {
-  const token = localStorage.getItem("saya_admin_token");
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
   const res = await fetch(`${API_URL}/admin/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
   return handleResponse(res);
 }
 
 export async function adminUpdateUserStatus(id: string, isActive: boolean): Promise<any> {
-  const token = localStorage.getItem("saya_admin_token");
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
   const res = await fetch(`${API_URL}/admin/users/${id}/status`, {
     method: "PATCH",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -416,7 +416,7 @@ export async function adminUpdateUserStatus(id: string, isActive: boolean): Prom
 }
 
 export async function adminGetMessages(page = 1, pageSize = 50, filters?: { user_id?: string; date_from?: string; date_to?: string; role?: string }): Promise<any> {
-  const token = localStorage.getItem("saya_admin_token");
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
   if (filters?.user_id) params.set("user_id", filters.user_id);
   if (filters?.date_from) params.set("date_from", filters.date_from);
@@ -428,18 +428,18 @@ export async function adminGetMessages(page = 1, pageSize = 50, filters?: { user
 }
 
 export async function adminGetCrises(page = 1, pageSize = 50, reviewed?: boolean, severity?: string): Promise<any> {
-  const token = localStorage.getItem("saya_admin_token");
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
   if (reviewed !== undefined) params.set("reviewed", String(reviewed));
   if (severity) params.set("severity", severity);
 
-  const res = await fetch(`${API_URL}/admin/crisis?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetch(`${API_URL}/admin/crises?${params}`, { headers: { Authorization: `Bearer ${token}` } });
   return handleResponse(res);
 }
 
 export async function adminReviewCrisis(id: string): Promise<any> {
-  const token = localStorage.getItem("saya_admin_token");
-  const res = await fetch(`${API_URL}/admin/crisis/${id}/review`, {
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
+  const res = await fetch(`${API_URL}/admin/crises/${id}/review`, {
     method: "PATCH",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ reviewed: true }),
@@ -448,9 +448,46 @@ export async function adminReviewCrisis(id: string): Promise<any> {
 }
 
 export async function adminGetAnalytics(): Promise<AdminAnalytics> {
-  const token = localStorage.getItem("saya_admin_token");
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
   const res = await fetch(`${API_URL}/admin/analytics`, { headers: { Authorization: `Bearer ${token}` } });
   return handleResponse<AdminAnalytics>(res);
+}
+
+export async function adminSetUserPlan(userId: string, plan: string, billingCycle: string, addDays?: number): Promise<any> {
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
+  const res = await fetch(`${API_URL}/admin/users/${userId}/set-plan`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ plan, billing_cycle: billingCycle, add_days: addDays }),
+  });
+  return handleResponse(res);
+}
+
+export async function adminManageCoins(userId: string, amount: number, operation: "add" | "set", note?: string): Promise<any> {
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
+  const res = await fetch(`${API_URL}/admin/users/${userId}/coins`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ amount, operation, note }),
+  });
+  return handleResponse(res);
+}
+
+export async function adminGetUserBehavior(userId: string, days = 30): Promise<any> {
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
+  const res = await fetch(`${API_URL}/admin/users/${userId}/behavior?days=${days}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export async function adminSetUserStatus(userId: string, isActive: boolean): Promise<any> {
+  const token = localStorage.getItem("saya_admin_token") || localStorage.getItem("saya_token");
+  const res = await fetch(`${API_URL}/admin/users/${userId}/status?is_active=${isActive}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
 }
 
 // Health

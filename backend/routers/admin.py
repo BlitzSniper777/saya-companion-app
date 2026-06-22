@@ -440,3 +440,131 @@ async def credit_coins(
     }
 
 
+class SetPlanRequest(BaseModel):
+    plan: str  # free/companion/gfbf/adult/vip
+    billing_cycle: str  # monthly/yearly/lifetime
+    add_days: Optional[int] = None
+
+class CoinManagementRequest(BaseModel):
+    amount: int
+    operation: str = "add"  # add | set
+    note: Optional[str] = None
+
+@router.patch("/users/{user_id}/status")
+async def update_user_status(
+    user_id: UUID,
+    is_active: bool,
+    admin: dict = Depends(verify_admin_token),
+    supabase: Client = Depends(get_supabase),
+):
+    supabase.table("users").update({"is_active": is_active}).eq("id", str(user_id)).execute()
+    return {"success": True}
+
+@router.post("/users/{user_id}/set-plan")
+async def set_user_plan(
+    user_id: UUID,
+    request: SetPlanRequest,
+    admin: dict = Depends(verify_admin_token),
+    supabase: Client = Depends(get_supabase),
+):
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    sub_res = supabase.table("subscriptions").select("*").eq("user_id", str(user_id)).execute()
+    current_sub = sub_res.data[0] if sub_res.data else None
+
+    if request.billing_cycle == "lifetime":
+        expires_at = None
+    else:
+        days = 365 if request.billing_cycle == "yearly" else 30
+        if current_sub and current_sub.get("expires_at"):
+            try:
+                current_exp = datetime.fromisoformat(current_sub["expires_at"].replace("Z", "+00:00"))
+                base = current_exp if current_exp > now else now
+            except Exception:
+                base = now
+        else:
+            base = now
+        expires_at = (base + timedelta(days=days)).isoformat()
+
+    if request.add_days:
+        base_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00")) if expires_at else now
+        expires_at = (base_dt + timedelta(days=request.add_days)).isoformat()
+
+    update_data: Dict[str, Any] = {
+        "user_id": str(user_id),
+        "plan": request.plan,
+        "status": "active",
+        "updated_at": now.isoformat(),
+    }
+    if expires_at is not None:
+        update_data["expires_at"] = expires_at
+
+    supabase.table("subscriptions").upsert(update_data).execute()
+    return {"success": True, "plan": request.plan, "expires_at": expires_at}
+
+
+@router.post("/users/{user_id}/coins")
+async def manage_user_coins(
+    user_id: UUID,
+    request: CoinManagementRequest,
+    admin: dict = Depends(verify_admin_token),
+    supabase: Client = Depends(get_supabase),
+):
+    coins_res = supabase.table("user_coins").select("*").eq("user_id", str(user_id)).execute()
+    current = coins_res.data[0] if coins_res.data else {"balance": 0, "total_purchased": 0}
+    new_balance = request.amount if request.operation == "set" else current["balance"] + request.amount
+    new_balance = max(0, new_balance)
+    delta = new_balance - current["balance"]
+
+    supabase.table("user_coins").upsert({
+        "user_id": str(user_id),
+        "balance": new_balance,
+        "total_purchased": current["total_purchased"] + max(0, delta),
+    }).execute()
+    if delta != 0:
+        supabase.table("coin_transactions").insert({
+            "user_id": str(user_id),
+            "amount": delta,
+            "type": "admin_credit",
+            "note": request.note or f"Admin {'set to' if request.operation == 'set' else 'adjusted by'} {request.amount:,}",
+        }).execute()
+    return {"success": True, "new_balance": new_balance}
+
+
+@router.get("/users/{user_id}/behavior")
+async def get_user_behavior(
+    user_id: UUID,
+    days: int = Query(30, ge=1, le=90),
+    admin: dict = Depends(verify_admin_token),
+    supabase: Client = Depends(get_supabase),
+):
+    from datetime import timedelta
+    start = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    msgs = supabase.table("messages").select("created_at, role, emotion_tags, metadata").eq("user_id", str(user_id)).gte("created_at", start).execute().data or []
+
+    by_day: Dict[str, int] = {}
+    emotion_counts: Dict[str, int] = {}
+    mode_counts: Dict[str, int] = {"friend": 0, "romantic": 0, "adult": 0}
+
+    for m in msgs:
+        if m.get("role") == "user":
+            day = m["created_at"][:10]
+            by_day[day] = by_day.get(day, 0) + 1
+        for tag in (m.get("emotion_tags") or []):
+            emotion_counts[tag] = emotion_counts.get(tag, 0) + 1
+        mode = (m.get("metadata") or {}).get("companion_mode", "friend")
+        if mode in mode_counts:
+            mode_counts[mode] = mode_counts.get(mode, 0) + 1
+
+    coins_res = supabase.table("user_coins").select("balance").eq("user_id", str(user_id)).execute()
+    coins_balance = coins_res.data[0]["balance"] if coins_res.data else 0
+
+    return {
+        "messages_per_day": [{"date": k, "count": v} for k, v in sorted(by_day.items())],
+        "emotion_distribution": sorted([{"tag": k, "count": v} for k, v in emotion_counts.items()], key=lambda x: -x["count"])[:10],
+        "mode_distribution": [{"mode": k, "count": v} for k, v in mode_counts.items()],
+        "total_messages": sum(1 for m in msgs if m.get("role") == "user"),
+        "days_active": len(by_day),
+        "coins_balance": coins_balance,
+    }
+
