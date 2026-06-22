@@ -32,29 +32,16 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Admin authentication - simple email/password check against settings
 ADMIN_EMAIL = getattr(settings, "ADMIN_EMAIL", None)
-ADMIN_PASSWORD_HASH = getattr(settings, "ADMIN_PASSWORD_HASH", None)
-
-
-async def get_admin_user(
-    credentials: dict = Depends(None),  # Will use custom auth
-) -> dict:
-    """Verify admin credentials. Uses ADMIN_EMAIL and ADMIN_PASSWORD_HASH from settings."""
-    # This will be implemented in login endpoint
-    pass
+ADMIN_PASSWORD = getattr(settings, "ADMIN_PASSWORD", None)
 
 
 @router.post("/login", response_model=AdminTokenResponse)
 async def admin_login(request: AdminLoginRequest):
     """Admin login - verifies against configured admin credentials."""
-    if not ADMIN_EMAIL or not ADMIN_PASSWORD_HASH:
+    if not ADMIN_EMAIL or not ADMIN_PASSWORD:
         raise HTTPException(status_code=503, detail="Admin not configured")
-    
-    if request.email != ADMIN_EMAIL:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Verify password
-    from auth import verify_password
-    if not verify_password(request.password, ADMIN_PASSWORD_HASH):
+
+    if request.email != ADMIN_EMAIL or request.password != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     # Create admin token (longer expiry)
@@ -95,7 +82,7 @@ async def get_admin_current_user(
 
 @router.get("/stats", response_model=AdminStatsResponse)
 async def get_admin_stats(
-    current_user: dict = Depends(get_admin_current_user),
+    admin: dict = Depends(verify_admin_token),
     supabase: Client = Depends(get_supabase),
 ):
     """Get platform-wide statistics."""
@@ -140,10 +127,11 @@ async def list_users(
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None),
     plan: Optional[str] = Query(None),
-    current_user: dict = Depends(get_admin_current_user),
+    admin: dict = Depends(verify_admin_token),
     supabase: Client = Depends(get_supabase),
 ):
     """List all users with pagination and filters."""
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
     offset = (page - 1) * page_size
     
     query = supabase.table("users").select(
@@ -198,7 +186,7 @@ async def list_users(
 @router.get("/users/{user_id}", response_model=AdminUserDetailResponse)
 async def get_user_detail(
     user_id: UUID,
-    current_user: dict = Depends(get_admin_current_user),
+    admin: dict = Depends(verify_admin_token),
     supabase: Client = Depends(get_supabase),
 ):
     """Get detailed user information for admin."""
@@ -240,7 +228,7 @@ async def list_all_messages(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     user_id: Optional[UUID] = Query(None),
-    current_user: dict = Depends(get_admin_current_user),
+    admin: dict = Depends(verify_admin_token),
     supabase: Client = Depends(get_supabase),
 ):
     """List all messages across platform (admin view)."""
@@ -284,7 +272,7 @@ async def list_crises(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     reviewed: Optional[bool] = Query(None),
-    current_user: dict = Depends(get_admin_current_user),
+    admin: dict = Depends(verify_admin_token),
     supabase: Client = Depends(get_supabase),
 ):
     """List all crisis events for admin review."""
@@ -312,14 +300,14 @@ async def list_crises(
 async def review_crisis(
     crisis_id: UUID,
     reviewed: bool = True,
-    current_user: dict = Depends(get_admin_current_user),
+    admin: dict = Depends(verify_admin_token),
     supabase: Client = Depends(get_supabase),
 ):
     """Mark crisis event as reviewed by admin."""
     result = supabase.table("crisis_events").update({
         "admin_reviewed": reviewed,
         "reviewed_at": datetime.now(timezone.utc).isoformat(),
-        "reviewed_by": current_user.get("email", "admin"),
+        "reviewed_by": admin.get("email", "admin"),
     }).eq("id", str(crisis_id)).execute()
     
     if not result.data:
@@ -331,7 +319,7 @@ async def review_crisis(
 @router.get("/analytics", response_model=AdminAnalyticsResponse)
 async def get_analytics(
     days: int = Query(30, ge=1, le=365),
-    current_user: dict = Depends(get_admin_current_user),
+    admin: dict = Depends(verify_admin_token),
     supabase: Client = Depends(get_supabase),
 ):
     """Get platform analytics for admin dashboard."""
