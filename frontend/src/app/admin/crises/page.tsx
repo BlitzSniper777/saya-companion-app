@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Shield, AlertTriangle, CheckCircle, XCircle, Eye, MoreHorizontal, Mail, User, Clock, Search, Filter, ChevronLeft, ChevronRight, Flag, MessageSquare, Heart, Brain, Zap, Download, Bell, Shield as ShieldIcon, X, Activity, Users, LineChart } from "lucide-react";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -95,50 +96,8 @@ export default function AdminCrisesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex relative overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 fixed left-0 top-0 h-screen z-30 flex flex-col" style={{background: '#06060f', borderRight: '1px solid rgba(139,92,246,0.18)'}}>
-        <div className="flex items-center justify-between h-14 px-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <motion.div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ duration: 0.5 }}
-              style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)' }}
-            >
-              <Shield className="w-5 h-5 text-white" />
-            </motion.div>
-            <span className="nav-brand text-lg">Saya Admin</span>
-          </div>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <Link href="/admin/dashboard" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-            <Activity className="w-5 h-5" />
-            <span className="font-medium">Overview</span>
-          </Link>
-          <Link href="/admin/users" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-            <Users className="w-5 h-5" />
-            <span className="font-medium">Users</span>
-          </Link>
-          <Link href="/admin/analytics" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-            <LineChart className="w-5 h-5" />
-            <span className="font-medium">Analytics</span>
-          </Link>
-          <Link href="/admin/crises" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left bg-card text-text">
-            <Shield className="w-5 h-5" />
-            <span className="font-medium">Crisis Events</span>
-          </Link>
-          <Link href="/admin/messages" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-            <MessageSquare className="w-5 h-5" />
-            <span className="font-medium">Messages</span>
-          </Link>
-        </nav>
-      </aside>
-
-      <main className="ml-64 flex-1 min-h-screen overflow-y-auto p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+    <AdminLayout>
+      <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -331,7 +290,6 @@ export default function AdminCrisesPage() {
             </div>
           </motion.div>
         </div>
-      </main>
 
       {/* Crisis Detail Modal */}
       <AnimatePresence>
@@ -423,7 +381,7 @@ export default function AdminCrisesPage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </AdminLayout>
   );
 }
 

@@ -13,6 +13,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { adminLogin, adminGetStats, adminGetUsers, adminGetAnalytics } from "@/lib/api";
 import type { AdminStats, AdminAnalytics } from "@/types";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8007";
 
@@ -65,80 +66,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex relative overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 fixed left-0 top-0 h-screen z-30 flex flex-col" style={{background: '#06060f', borderRight: '1px solid rgba(139,92,246,0.18)'}}>
-        <div className="flex items-center justify-between h-14 px-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <motion.div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ duration: 0.5 }}
-              style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)' }}
-            >
-              <Shield className="w-5 h-5 text-white" />
-            </motion.div>
-            <span className="nav-brand text-lg">Saya Admin</span>
-          </div>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <div className="px-2 mb-4">
-            <span className="section-label">Dashboard</span>
-          </div>
-          <Link
-            href="/admin/dashboard"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left bg-card text-text"
-          >
-            <BarChart2 className="w-5 h-5" />
-            <span className="font-medium">Overview</span>
-          </Link>
-          <Link
-            href="/admin/users"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2"
-          >
-            <Users className="w-5 h-5" />
-            <span className="font-medium">Users</span>
-          </Link>
-          <Link
-            href="/admin/analytics"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2"
-          >
-            <LineChart className="w-5 h-5" />
-            <span className="font-medium">Analytics</span>
-          </Link>
-          <Link
-            href="/admin/crises"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2"
-          >
-            <Shield className="w-5 h-5" />
-            <span className="font-medium">Crisis Events</span>
-          </Link>
-          <Link
-            href="/admin/messages"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2"
-          >
-            <MessageSquare className="w-5 h-5" />
-            <span className="font-medium">Messages</span>
-          </Link>
-
-          <div className="pt-4 mt-4 border-t border-border">
-            <div className="px-2 mb-4">
-              <span className="section-label">System</span>
-            </div>
-            <Link
-              href="/"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Back to Saya</span>
-            </Link>
-          </div>
-        </nav>
-      </aside>
-
-      <main className="ml-64 flex-1 min-h-screen overflow-y-auto p-6">
+    <AdminLayout>
+      <div className="max-w-7xl mx-auto space-y-6">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <motion.div
@@ -403,9 +332,9 @@ export default function AdminDashboard() {
                   {[
                     { time: "2 min ago", event: "New Registration", user: "sarah@example.com", plan: "Free", detail: "Completed onboarding" },
                     { time: "15 min ago", event: "Subscription Upgrade", user: "mike@example.com", plan: "Companion", detail: "Monthly billing started" },
-                    { time: "1 hour ago", event: "Crisis Detected", user: "alex@example.com", plan: "GF/BF", detail: "Resources provided" },
+                    { time: "1 hour ago", event: "Crisis Detected", user: "alex@example.com", plan: "Romantic Companion", detail: "Resources provided" },
                     { time: "3 hours ago", event: "New Registration", user: "emma@example.com", plan: "Free", detail: "Email verified" },
-                    { time: "5 hours ago", event: "Subscription Upgrade", user: "john@example.com", plan: "GF/BF", detail: "Lifetime purchase" },
+                    { time: "5 hours ago", event: "Subscription Upgrade", user: "john@example.com", plan: "Romantic Companion", detail: "Lifetime purchase" },
                   ].map((row, idx) => (
                     <tr key={idx} className={`${idx % 2 === 0 ? "bg-card/50" : ""}`}>
                       <td className="text-xs text-dim">{row.time}</td>
@@ -416,7 +345,7 @@ export default function AdminDashboard() {
                       </td>
                       <td className="text-sm text-text">{row.user}</td>
                       <td>
-                        <span className={`pill ${row.plan === "Free" ? "pill-dim" : row.plan === "Companion" ? "pill-purple" : row.plan === "GF/BF" ? "pill-pink" : "pill-red"}`}>
+                        <span className={`pill ${row.plan === "Free" ? "pill-dim" : row.plan === "Companion" ? "pill-purple" : row.plan === "Romantic Companion" ? "pill-pink" : "pill-red"}`}>
                           {row.plan}
                         </span>
                       </td>
@@ -461,7 +390,6 @@ export default function AdminDashboard() {
             </div>
           </motion.div>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

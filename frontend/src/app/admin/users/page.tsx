@@ -7,6 +7,7 @@ import { Sparkles, Loader2, Users, Search, Filter, MoreHorizontal, Shield, Mail,
 import { motion } from "framer-motion";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8007";
 
@@ -31,8 +32,8 @@ interface AdminUserListResponse {
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",
   companion: "Companion",
-  gfbf: "GF/BF",
-  adult: "Adult",
+  gfbf: "Romantic Companion",
+  adult: "Adult Companion",
 };
 
 const PLAN_BADGES: Record<string, string> = {
@@ -115,59 +116,8 @@ export default function AdminUsersPage() {
   const totalPages = Math.ceil(total / pageSize);
 
   return (
-    <div className="min-h-screen bg-bg flex relative overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 fixed left-0 top-0 h-screen z-30 flex flex-col" style={{background: '#06060f', borderRight: '1px solid rgba(139,92,246,0.18)'}}>
-        <div className="flex items-center justify-between h-14 px-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <motion.div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ duration: 0.5 }}
-              style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)' }}
-            >
-              <Shield className="w-5 h-5 text-white" />
-            </motion.div>
-            <span className="nav-brand text-lg">Saya Admin</span>
-          </div>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <div className="px-2 mb-4">
-            <span className="section-label">Dashboard</span>
-          </div>
-          <Link href="/admin/dashboard" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-            <Activity className="w-5 h-5" />
-            <span className="font-medium">Overview</span>
-          </Link>
-          <Link href="/admin/users" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left bg-card text-text">
-            <Users className="w-5 h-5" />
-            <span className="font-medium">Users</span>
-          </Link>
-          <Link href="/admin/analytics" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-            <Sparkles className="w-5 h-5" />
-            <span className="font-medium">Analytics</span>
-          </Link>
-          <Link href="/admin/crises" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-            <Shield className="w-5 h-5" />
-            <span className="font-medium">Crisis Events</span>
-          </Link>
-          <Link href="/admin/messages" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-            <Mail className="w-5 h-5" />
-            <span className="font-medium">Messages</span>
-          </Link>
-          <div className="pt-4 mt-4 border-t border-border">
-            <Link href="/" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left text-dim hover:text-text hover:bg-card2">
-              <Sparkles className="w-5 h-5" />
-              <span className="font-medium">Back to Saya</span>
-            </Link>
-          </div>
-        </nav>
-      </aside>
-
-      <main className="ml-64 flex-1 min-h-screen overflow-y-auto p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+    <AdminLayout>
+      <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -212,7 +162,7 @@ export default function AdminUsersPage() {
                 <option value="">All Plans</option>
                 <option value="free">Free</option>
                 <option value="companion">Companion</option>
-                <option value="gfbf">GF/BF</option>
+                <option value="gfbf">Romantic Companion</option>
                 <option value="adult">Adult</option>
               </select>
               <select
@@ -373,7 +323,6 @@ export default function AdminUsersPage() {
             )}
           </motion.div>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
